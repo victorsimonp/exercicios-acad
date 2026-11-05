@@ -1,13 +1,253 @@
 generator client {
   provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  output = "../src/generated/prisma"
   moduleFormat = "esm"
 }
 datasource db {
   provider = "postgresql"
 }
-// Registro técnico para validar a primeira migration, sem modelos de treino.
 model SetupCheck {
-  id        Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
   createdAt DateTime @default(now())
+}
+model User {
+  id String @id @default(cuid())
+  name String
+  email String @unique
+  passwordHash String
+  settings Json @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tokens AuthSession[]
+  programs TrainingProgram[]
+  exercises Exercise[]
+  sessions WorkoutSession[]
+  recommendations ProgressionRecommendation[]
+  changes ExerciseChangeLog[]
+  schedules WorkoutSchedule[]
+}
+model AuthSession {
+  id String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  @@index([userId])
+}
+model MuscleGroup {
+  id String @id
+  name String
+  region String @default("")
+  parentId String?
+  exercises Exercise[]
+  participation ExerciseMuscle[]
+}
+model Exercise {
+  id String @id @default(cuid())
+  userId String?
+  user User? @relation(fields: [userId], references: [id])
+  name String
+  normalizedName String
+  primaryMuscleGroupId String
+  primaryMuscle MuscleGroup @relation(fields: [primaryMuscleGroupId], references: [id])
+  region String @default("")
+  equipment String @default("")
+  movementType String @default("compound")
+  laterality String @default("bilateral")
+  instructions String @default("")
+  source String @default("custom")
+  isActive Boolean @default(true)
+  increment Decimal @default(1) @db.Decimal(8, 3)
+  incrementPercent Decimal @default(2.5) @db.Decimal(6, 3)
+  weightBasis String @default("total")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  muscles ExerciseMuscle[]
+  prescriptions WorkoutExercise[]
+  snapshots SessionExercise[]
+  recommendations ProgressionRecommendation[]
+  @@index([userId, normalizedName])
+}
+model ExerciseMuscle {
+  exerciseId String
+  muscleGroupId String
+  role String
+  emphasis Float @default(1)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  muscleGroup MuscleGroup @relation(fields: [muscleGroupId], references: [id])
+  @@id([exerciseId, muscleGroupId])
+}
+model TrainingProgram {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  name String
+  description String @default("")
+  totalWeeks Int @default(8)
+  startDate DateTime
+  status String @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  weeks ProgramWeek[]
+  workouts WorkoutTemplate[]
+  sessions WorkoutSession[]
+  @@index([userId, status])
+}
+model ProgramWeek {
+  id String @id @default(cuid())
+  programId String
+  program TrainingProgram @relation(fields: [programId], references: [id])
+  weekNumber Int
+  focus String
+  isDeload Boolean @default(false)
+  rirMin Int @default(1)
+  rirMax Int @default(2)
+  volumeRule String @default("target")
+  setsOverride Int?
+  sessions WorkoutSession[]
+  @@unique([programId, weekNumber])
+}
+model WorkoutTemplate {
+  id String @id @default(cuid())
+  programId String
+  program TrainingProgram @relation(fields: [programId], references: [id])
+  focus String
+  dayNumber Int
+  name String
+  description String @default("")
+  exercises WorkoutExercise[]
+  sessions WorkoutSession[]
+  schedules WorkoutSchedule[]
+  @@index([programId, focus])
+}
+model WorkoutExercise {
+  id String @id @default(cuid())
+  workoutTemplateId String
+  workout WorkoutTemplate @relation(fields: [workoutTemplateId], references: [id])
+  exerciseId String
+  exercise Exercise @relation(fields: [exerciseId], references: [id])
+  order Int
+  targetSets Int
+  minReps Int
+  maxReps Int
+  targetRirMin Int @default(1)
+  targetRirMax Int @default(2)
+  restSeconds Int
+  restMaxSeconds Int
+  notes String @default("")
+  futureOverride Json?
+  @@index([workoutTemplateId, order])
+}
+model WorkoutSession {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  programId String
+  program TrainingProgram @relation(fields: [programId], references: [id])
+  programWeekId String
+  week ProgramWeek @relation(fields: [programWeekId], references: [id])
+  workoutTemplateId String
+  workout WorkoutTemplate @relation(fields: [workoutTemplateId], references: [id])
+  idempotencyKey String
+  scheduledDate DateTime @default(now())
+  startedAt DateTime @default(now())
+  completedAt DateTime?
+  status String @default("active")
+  notes String @default("")
+  nameSnapshot String
+  focusSnapshot String
+  weekNumberSnapshot Int
+  isDeloadSnapshot Boolean
+  restEndsAt DateTime?
+  exercises SessionExercise[]
+  recommendations ProgressionRecommendation[]
+  schedule WorkoutSchedule?
+  @@unique([userId, idempotencyKey])
+  @@index([userId, startedAt])
+}
+model SessionExercise {
+  id String @id @default(cuid())
+  sessionId String
+  session WorkoutSession @relation(fields: [sessionId], references: [id])
+  exerciseId String
+  exercise Exercise @relation(fields: [exerciseId], references: [id])
+  exerciseNameSnapshot String
+  muscleSnapshot String
+  muscleParticipationSnapshot Json @default("[]")
+  weightBasisSnapshot String
+  order Int
+  prescribedSetsSnapshot Int
+  minRepsSnapshot Int
+  maxRepsSnapshot Int
+  targetRirMinSnapshot Int
+  targetRirMaxSnapshot Int
+  restSecondsSnapshot Int
+  notes String @default("")
+  sets ExerciseSet[]
+  @@index([sessionId, order])
+}
+model WorkoutSchedule {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  workoutTemplateId String
+  workout WorkoutTemplate @relation(fields: [workoutTemplateId], references: [id])
+  scheduledDate DateTime
+  status String @default("scheduled")
+  previousDates Json @default("[]")
+  sessionId String? @unique
+  session WorkoutSession? @relation(fields: [sessionId], references: [id])
+  notes String @default("")
+  @@index([userId, scheduledDate])
+}
+model ExerciseSet {
+  id String @id @default(cuid())
+  sessionExerciseId String
+  sessionExercise SessionExercise @relation(fields: [sessionExerciseId], references: [id])
+  setNumber Int
+  setType String @default("work")
+  prescribedRepsMin Int
+  prescribedRepsMax Int
+  actualReps Int?
+  weight Decimal? @db.Decimal(10, 3)
+  weightUnit String @default("kg")
+  weightBasis String @default("total")
+  rir Int?
+  completed Boolean @default(false)
+  skipped Boolean @default(false)
+  techniqueOk Boolean @default(true)
+  completedAt DateTime?
+  notes String @default("")
+  revision Int @default(0)
+  @@index([sessionExerciseId])
+}
+model ProgressionRecommendation {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  exerciseId String
+  exercise Exercise @relation(fields: [exerciseId], references: [id])
+  sessionId String
+  session WorkoutSession @relation(fields: [sessionId], references: [id])
+  currentWeight Decimal? @db.Decimal(10, 3)
+  suggestedWeight Decimal? @db.Decimal(10, 3)
+  reason String
+  status String @default("pending")
+  createdAt DateTime @default(now())
+  @@unique([sessionId, exerciseId])
+  @@index([userId, status])
+}
+model ExerciseChangeLog {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  programId String?
+  workoutTemplateId String?
+  previousExerciseId String?
+  newExerciseId String?
+  changeScope String
+  resourceId String
+  before Json
+  after Json
+  changedAt DateTime @default(now())
+  @@index([userId, resourceId, changedAt])
 }

@@ -1,0 +1,116 @@
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { Program, User } from '@ht/shared';
+import { api, ApiError } from '../services/api';
+type Context = {
+  user: User;
+  programs: Program[];
+  program: Program | undefined;
+  setProgramId: (id: string) => void;
+  weekNumber: number;
+  setWeekNumber: (n: number) => void;
+  refresh: () => Promise<void>;
+  logout: () => Promise<void>;
+};
+export const TrainingContext = createContext<Context | null>(null);
+export function useTraining() {
+  const ctx = useContext(TrainingContext);
+  if (!ctx) throw new Error('Contexto indisponível');
+  return ctx;
+}
+export function AccountGate({
+  children,
+  login,
+}: {
+  children: ReactNode;
+  login: ReactNode;
+}) {
+  const client = useQueryClient();
+  const user = useQuery({
+    queryKey: ['me'],
+    queryFn: () => api<User>('/auth/me'),
+    retry: false,
+  });
+  const programs = useQuery({
+    queryKey: ['programs'],
+    queryFn: () => api<Program[]>('/programs'),
+    enabled: !!user.data,
+  });
+  const [selectedWeek, setWeekNumber] = useState<number | null>(null);
+  const [selectedProgram, setSelectedProgram] = useState<string | null>(null);
+  const program =
+    programs.data?.find(
+      (p) => p.id === selectedProgram && p.status === 'active',
+    ) ?? programs.data?.find((p) => p.status === 'active');
+  const current = program
+    ? Math.max(
+        1,
+        Math.min(
+          program.totalWeeks,
+          Math.floor(
+            (Date.now() - new Date(program.startDate).getTime()) / 604800000,
+          ) + 1,
+        ),
+      )
+    : 1;
+  const weekNumber = Math.min(
+    program?.totalWeeks ?? 8,
+    selectedWeek ?? current,
+  );
+  useEffect(() => {
+    document.documentElement.dataset.theme =
+      user.data?.settings.theme ?? 'dark';
+  }, [user.data]);
+  if (user.isPending)
+    return <div className="center-screen">Carregando sua conta…</div>;
+  if (user.error instanceof ApiError && user.error.status === 401) return login;
+  if (user.error || programs.error)
+    return (
+      <div className="center-screen">
+        <div className="error">
+          {(user.error ?? programs.error)?.message}
+          <button
+            onClick={() => {
+              void user.refetch();
+              void programs.refetch();
+            }}
+          >
+            Tentar novamente
+          </button>
+        </div>
+      </div>
+    );
+  if (!user.data || programs.isPending)
+    return <div className="center-screen">Carregando programa…</div>;
+  return (
+    <TrainingContext.Provider
+      value={{
+        user: user.data,
+        programs: programs.data ?? [],
+        program,
+        setProgramId: (id) => {
+          setSelectedProgram(id);
+          setWeekNumber(null);
+        },
+        weekNumber,
+        setWeekNumber,
+        refresh: async () => {
+          await client.invalidateQueries();
+        },
+        logout: async () => {
+          await api('/auth/logout', 'POST');
+          client.clear();
+          await user.refetch();
+        },
+      }}
+    >
+      {children}
+    </TrainingContext.Provider>
+  );
+}

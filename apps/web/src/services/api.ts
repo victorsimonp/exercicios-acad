@@ -1,17 +1,38 @@
-import type { HealthResponse } from '@ht/shared';
 const baseUrl = (
   import.meta.env.VITE_API_URL || 'http://localhost:3333'
 ).replace(/\/$/, '');
-export async function getHealth(signal?: AbortSignal): Promise<HealthResponse> {
-  const response = await fetch(`${baseUrl}/api/v1/health`, { signal });
-  if (!response.ok) throw new Error(`A API respondeu HTTP ${response.status}`);
-  const data: unknown = await response.json();
-  if (
-    !data ||
-    typeof data !== 'object' ||
-    !('status' in data) ||
-    data.status !== 'ok'
-  )
-    throw new Error('Resposta inesperada da API');
-  return { status: 'ok' };
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+export async function api<T>(
+  path: string,
+  method = 'GET',
+  body?: unknown,
+): Promise<T> {
+  const response = await fetch(`${baseUrl}/api/v1${path}`, {
+    method,
+    credentials: 'include',
+    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok)
+    throw new ApiError(
+      response.status,
+      data.error ?? `Erro HTTP ${response.status}`,
+    );
+  return data as T;
+}
+export function queryString(
+  params: Record<string, string | number | undefined>,
+) {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params))
+    if (v !== undefined && v !== '') q.set(k, String(v));
+  return q.size ? `?${q}` : '';
 }

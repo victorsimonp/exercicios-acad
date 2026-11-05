@@ -1,26 +1,113 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import type { HealthResponse } from '@ht/shared';
+import cookie from '@fastify/cookie';
+import rateLimit from '@fastify/rate-limit';
+import swagger from '@fastify/swagger';
+import swaggerUi from '@fastify/swagger-ui';
+import { ZodError } from 'zod';
+import { authRoutes, authenticate } from './modules/auth.js';
+import { exerciseRoutes } from './modules/exercises.js';
+import { programRoutes } from './modules/programs.js';
+import { sessionRoutes } from './modules/sessions.js';
+import { analyticsRoutes } from './modules/analytics.js';
+import { documentRoutes } from './modules/docs.js';
+import { scheduleRoutes } from './modules/schedules.js';
 export function buildApp(origin: string, logger = false) {
   const app = Fastify({ logger });
-  app.register(cors, { origin });
+  // Zod validates every body in its handler. Do not let AJV coerce null numeric inputs to zero.
+  app.setValidatorCompiler(() => (data) => ({ value: data }));
+  app.register(cors, {
+    origin,
+    credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  });
+  app.register(cookie);
+  app.register(rateLimit, { max: 300, timeWindow: '1 minute' });
+  app.addHook('onRequest', async (request, reply) => {
+    if (
+      !['GET', 'HEAD', 'OPTIONS'].includes(request.method) &&
+      request.headers.origin &&
+      request.headers.origin !== origin
+    ) {
+      return reply.code(403).send({ error: 'Origem não permitida.' });
+    }
+  });
+  app.register(swagger, {
+    openapi: {
+      info: {
+        title: 'Hypertrophy Tracker API',
+        version: '1.0.0',
+        description:
+          'API autenticada por cookie HttpOnly. Valores de carga em kg, base total/por lado/por halter. Listas de exercícios e sessões são paginadas.',
+      },
+      components: {
+        securitySchemes: {
+          cookieAuth: { type: 'apiKey', in: 'cookie', name: 'ht_session' },
+        },
+      },
+    },
+    transform: ({ schema, url }) => ({
+      schema: {
+        summary: `${url}`,
+        ...schema,
+        security:
+          url.includes('/auth/') || url.includes('/health')
+            ? []
+            : [{ cookieAuth: [] }],
+      },
+      url,
+    }),
+  });
+  app.register(swaggerUi, { routePrefix: '/docs' });
+  documentRoutes(app);
+  app.register(authRoutes, { prefix: '/api/v1' });
+  app.register(
+    async (protectedApp) => {
+      protectedApp.addHook('preHandler', authenticate);
+      await exerciseRoutes(protectedApp);
+      await programRoutes(protectedApp);
+      await sessionRoutes(protectedApp);
+      await analyticsRoutes(protectedApp);
+      await scheduleRoutes(protectedApp);
+    },
+    { prefix: '/api/v1' },
+  );
   app.get<{ Reply: HealthResponse }>('/api/v1/health', async () => ({
     status: 'ok',
   }));
   app.setErrorHandler((error, request, reply) => {
     request.log.error(error);
+    if (error instanceof ZodError)
+      return reply.code(400).send({
+        error: error.issues
+          .map((i) => `${i.path.join('.')}: ${i.message}`)
+          .join('; '),
+      });
+    if (typeof error === 'object' && error && 'code' in error) {
+      if (error.code === 'P2002')
+        return reply.code(409).send({ error: 'Registro duplicado.' });
+      if (error.code === 'P2003')
+        return reply
+          .code(400)
+          .send({ error: 'Referência inválida ou registro em uso.' });
+      if (error.code === 'P2025')
+        return reply.code(404).send({ error: 'Registro não encontrado.' });
+    }
     const status =
       error instanceof Error &&
       'statusCode' in error &&
       typeof error.statusCode === 'number'
         ? error.statusCode
         : 500;
-    reply
-      .code(status)
-      .send({
-        error:
-          status >= 500 ? 'Erro interno do servidor' : 'Requisição inválida',
-      });
+    reply.code(status).send({
+      error:
+        status >= 500
+          ? 'Erro interno do servidor'
+          : error instanceof Error
+            ? error.message
+            : 'Requisição inválida',
+    });
   });
   return app;
 }

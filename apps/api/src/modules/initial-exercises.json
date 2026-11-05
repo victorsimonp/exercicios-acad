@@ -1,0 +1,258 @@
+[
+  {
+    "targetSets": 3,
+    "name": "Supino inclinado smith banco 30°",
+    "maxReps": 10,
+    "minReps": 6,
+    "restMaxSeconds": 180,
+    "restSeconds": 120
+  },
+  {
+    "targetSets": 2,
+    "name": "Crucifixo inclinado no Cross Over banco 30° (polia baixa)",
+    "maxReps": 15,
+    "minReps": 10,
+    "restMaxSeconds": 90,
+    "restSeconds": 90
+  },
+  {
+    "targetSets": 3,
+    "name": "Tríceps francês polia corda",
+    "maxReps": 12,
+    "minReps": 8,
+    "restMaxSeconds": 120,
+    "restSeconds": 90
+  },
+  {
+    "targetSets": 2,
+    "name": "Tríceps pulley barra pronada",
+    "maxReps": 15,
+    "minReps": 10,
+    "restMaxSeconds": 90,
+    "restSeconds": 60
+  },
+  {
+    "targetSets": 3,
+    "name": "Remada baixa barra H",
+    "maxReps": 12,
+    "minReps": 8,
+    "restMaxSeconds": 120,
+    "restSeconds": 120
+  },
+  {
+    "targetSets": 3,
+    "name": "Seal Row barra pronado",
+    "maxReps": 12,
+    "minReps": 8,
+    "restMaxSeconds": 120,
+    "restSeconds": 120
+  },
+  {
+    "targetSets": 3,
+    "name": "Rosca direta barra W",
+    "maxReps": 12,
+    "minReps": 8,
+    "restMaxSeconds": 90,
+    "restSeconds": 90
+  },
+  {
+    "targetSets": 2,
+    "name": "Rosca martelo halter bilateral",
+    "maxReps": 12,
+    "minReps": 10,
+    "restMaxSeconds": 90,
+    "restSeconds": 90
+  },
+  {
+    "targetSets": 3,
+    "name": "Hack angular",
+    "maxReps": 10,
+    "minReps": 6,
+    "restMaxSeconds": 180,
+    "restSeconds": 120
+  },
+  {
+    "targetSets": 3,
+    "name": "Cadeira extensora",
+    "maxReps": 15,
+    "minReps": 10,
+    "restMaxSeconds": 90,
+    "restSeconds": 90
+  },
+  {
+    "targetSets": 3,
+    "name": "Stiff halter",
+    "maxReps": 12,
+    "minReps": 8,
+    "restMaxSeconds": 120,
+    "restSeconds": 120
+  },
+  {
+    "targetSets": 3,
+    "name": "Panturrilha em pé máquina",
+    "maxReps": 15,
+    "minReps": 10,
+    "restMaxSeconds": 90,
+    "restSeconds": 60
+  },
+  {
+    "targetSets": 3,
+    "name": "Elevação lateral polia baixa",
+    "maxReps": 15,
+    "minReps": 12,
+    "restMaxSeconds": 90,
+    "restSeconds": 60
+  },
+  {
+    "targetSets": 3,
+    "name": "Crucifixo inverso máquina (voador)",
+    "maxReps": 15,
+    "minReps": 12,
+    "restMaxSeconds": 90,
+    "restSeconds": 60
+  },
+  {
+    "targetSets": 2,
+    "name": "Supino inclinado halter banco 30°",
+    "maxReps": 12,
+    "minReps": 8,
+    "restMaxSeconds": 120,
+    "restSeconds": 120
+  },
+  {
+    "targetSets": 2,
+    "name": "Remada baixa maquina pronada",
+    "maxReps": 12,
+    "minReps": 8,
+    "restMaxSeconds": 120,
+    "restSeconds": 120
+  },
+  {
+    "targetSets": 3,
+    "name": "Supino reto halter",
+    "maxReps": 10,
+    "minReps": 6,
+    "restMaxSeconds": 180,
+    "restSeconds": 120
+  },
+  {
+    "targetSets": 2,
+    "name": "Supino declinado máquina",
+    "maxReps": 12,
+    "minReps": 8,
+    "restMaxSeconds": 120,
+    "restSeconds": 120
+  },
+  {
+    "targetSets": 3,
+    "name": "Tríceps testa barra W",
+    "maxReps": 12,
+    "minReps": 8,
+    "restMaxSeconds": 120,
+    "restSeconds": 90
+  },
+  {
+    "targetSets": 2,
+    "name": "Tríceps pulley corda",
+    "maxReps": 15,
+    "minReps": 10,
+    "restMaxSeconds": 90,
+    "restSeconds": 60
+  },
+  {
+    "targetSets": 3,
+    "name": "Puxada frontal pronada",
+    "maxReps": 12,
+    "minReps": 8,
+    "restMaxSeconds": 120,
+    "restSeconds": 120
+  },
+  {
+    "targetSets": 3,
+    "name": "Puxada unilateral polia banco inclinado (foco no latíssimo)",
+    "maxReps": 12,
+    "minReps": 10,
+    "restMaxSeconds": 120,
+    "restSeconds": 90
+  },
+  {
+    "targetSets": 3,
+    "name": "Rosca direta banco 45° halter bilateral",
+    "maxReps": 12,
+    "minReps": 8,
+    "restMaxSeconds": 90,
+    "restSeconds": 90
+  },
+  {
+    "targetSets": 2,
+    "name": "Rosca scott maquina",
+    "maxReps": 12,
+    "minReps": 10,
+    "restMaxSeconds": 90,
+    "restSeconds": 90
+  },
+  {
+    "targetSets": 3,
+    "name": "Elevação pélvica máquina",
+    "maxReps": 12,
+    "minReps": 8,
+    "restMaxSeconds": 120,
+    "restSeconds": 120
+  },
+  {
+    "targetSets": 3,
+    "name": "Cadeira flexora",
+    "maxReps": 15,
+    "minReps": 10,
+    "restMaxSeconds": 90,
+    "restSeconds": 90
+  },
+  {
+    "targetSets": 3,
+    "name": "Leg Press 45°",
+    "maxReps": 12,
+    "minReps": 10,
+    "restMaxSeconds": 180,
+    "restSeconds": 120
+  },
+  {
+    "targetSets": 3,
+    "name": "Panturrilha sentado máquina",
+    "maxReps": 15,
+    "minReps": 12,
+    "restMaxSeconds": 90,
+    "restSeconds": 60
+  },
+  {
+    "targetSets": 3,
+    "name": "Desenvolvimento halter banco 75°",
+    "maxReps": 10,
+    "minReps": 6,
+    "restMaxSeconds": 120,
+    "restSeconds": 120
+  },
+  {
+    "targetSets": 2,
+    "name": "Elevação frontal polia baixa corda",
+    "maxReps": 15,
+    "minReps": 10,
+    "restMaxSeconds": 90,
+    "restSeconds": 60
+  },
+  {
+    "targetSets": 2,
+    "name": "Crucifixo reto máquina (Voador)",
+    "maxReps": 15,
+    "minReps": 10,
+    "restMaxSeconds": 90,
+    "restSeconds": 90
+  },
+  {
+    "targetSets": 3,
+    "name": "Puxada máquina neutra",
+    "maxReps": 12,
+    "minReps": 8,
+    "restMaxSeconds": 120,
+    "restSeconds": 120
+  }
+]

@@ -10,14 +10,16 @@
     "dev": "pnpm --parallel --filter @ht/web --filter @ht/api dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm --filter @ht/api test",
+    "test": "pnpm --filter @ht/api test && pnpm --filter @ht/web test",
+    "test:e2e": "pnpm --filter @ht/web test:e2e",
     "lint": "eslint .",
     "format": "prettier --write .",
     "db:up": "docker compose up -d --wait",
     "db:stop": "docker compose stop",
     "db:generate": "pnpm --filter @ht/api db:generate",
     "db:migrate": "pnpm --filter @ht/api db:migrate",
-    "db:check": "pnpm --filter @ht/api db:check"
+    "db:check": "pnpm --filter @ht/api db:check",
+    "db:seed": "pnpm --filter @ht/api db:seed"
   },
   "devDependencies": {
     "typescript": "^5.9.0",
