@@ -1,0 +1,13 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+datasource db {
+  provider = "postgresql"
+}
+// Registro técnico para validar a primeira migration, sem modelos de treino.
+model SetupCheck {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+}

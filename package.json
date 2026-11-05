@@ -1,0 +1,12 @@
+{
+  "name": "hypertrophy-tracker", "private": true, "type": "module", "packageManager": "pnpm@10.34.9",
+  "engines": {"node": ">=24 <25"},
+  "scripts": {
+    "dev": "pnpm --parallel --filter @ht/web --filter @ht/api dev",
+    "build": "pnpm -r build", "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter @ht/api test", "lint": "eslint .", "format": "prettier --write .",
+    "db:up": "docker compose up -d --wait", "db:stop": "docker compose stop",
+    "db:generate": "pnpm --filter @ht/api db:generate", "db:migrate": "pnpm --filter @ht/api db:migrate", "db:check": "pnpm --filter @ht/api db:check"
+  },
+  "devDependencies": {"typescript": "^5.9.0", "eslint": "^9.0.0", "@eslint/js": "^9.0.0", "typescript-eslint": "^8.0.0", "prettier": "^3.0.0", "globals": "^16.0.0"}
+}
