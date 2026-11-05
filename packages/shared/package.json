@@ -1,1 +1,14 @@
-{"name":"@ht/shared","private":true,"version":"0.0.0","type":"module","exports":"./src/index.ts","scripts":{"build":"tsc --noEmit","typecheck":"tsc --noEmit"},"devDependencies":{"typescript":"^5.9.0"}}
+{
+  "name": "@ht/shared",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  }
+}
