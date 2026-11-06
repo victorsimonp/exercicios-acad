@@ -13,7 +13,11 @@ export function buildConfig(current) {
   for (const origin of [site, 'http://localhost:5173', 'http://127.0.0.1:5173'])
     for (const path of ['/auth/callback', '/auth/redefinir-senha'])
       redirects.add(origin + path);
-  const config = { site_url: site, uri_allow_list: [...redirects].join(',') };
+  const config = {
+    site_url: site,
+    uri_allow_list: [...redirects].join(','),
+    mailer_autoconfirm: true,
+  };
   for (const [key, subject] of Object.entries(subjects)) {
     config[`mailer_subjects_${key}`] = subject;
     config[`mailer_templates_${key}_content`] = readFileSync(
@@ -60,7 +64,7 @@ async function main() {
     if (saved[key] !== value)
       throw new Error(`A verificação falhou para ${key}.`);
   console.log(
-    `Site URL, redirects e ${Object.keys(subjects).length} templates aplicados e verificados.`,
+    `Cadastro sem confirmação de email, Site URL, redirects e ${Object.keys(subjects).length} templates aplicados e verificados.`,
   );
   console.log(
     current.smtp_host

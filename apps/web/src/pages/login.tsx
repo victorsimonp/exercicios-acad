@@ -14,7 +14,6 @@ const schema = z.object({
 });
 export function LoginPage() {
   const [registering, setRegistering] = useState(false);
-  const [message, setMessage] = useState('');
   const [recovering, setRecovering] = useState(false);
   const client = useQueryClient();
   const form = useForm<z.infer<typeof schema>>({
@@ -23,7 +22,6 @@ export function LoginPage() {
   });
   const mutation = useMutation({
     mutationFn: async (d: z.infer<typeof schema>) => {
-      setMessage('');
       const auth = getSupabase().auth;
       const result = registering
         ? await auth.signUp({
@@ -31,7 +29,6 @@ export function LoginPage() {
             password: d.password,
             options: {
               data: { name: d.name || 'Atleta' },
-              emailRedirectTo: `${window.location.origin}/auth/callback`,
             },
           })
         : await auth.signInWithPassword({
@@ -40,8 +37,8 @@ export function LoginPage() {
           });
       if (result.error) throw result.error;
       if (registering && !result.data.session)
-        setMessage(
-          'Confira seu email e confirme o cadastro. Depois, entre com a nova senha. Use o mesmo email da conta antiga para recuperar seu histórico.',
+        throw new Error(
+          'O cadastro sem confirmação ainda não foi habilitado. Desative “Confirm email” no painel do Supabase para entrar diretamente.',
         );
     },
     onSuccess: () => client.invalidateQueries({ queryKey: ['me'] }),
@@ -90,11 +87,6 @@ export function LoginPage() {
               ? 'Crie sua conta e receba o programa inicial completo.'
               : 'Entre para acompanhar o seu treinamento.'}
           </p>
-          {message && (
-            <p className="notice" role="status">
-              {message}
-            </p>
-          )}
           {recovering ? (
             <PasswordRecovery onClose={() => setRecovering(false)} />
           ) : (

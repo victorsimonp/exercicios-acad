@@ -18,7 +18,34 @@ function mount() {
     </QueryClientProvider>,
   );
 }
-test('cadastro usa Supabase Auth e mostra a confirmação de email sem criar sessão fictícia', async () => {
+test('cadastro entra com a sessão real sem solicitar confirmação de email', async () => {
+  auth.signUp.mockResolvedValue({
+    data: { session: { access_token: 'real-session' } },
+    error: null,
+  });
+  mount();
+  fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }));
+  fireEvent.change(screen.getByLabelText('Email'), {
+    target: { value: 'atleta@example.com' },
+  });
+  fireEvent.change(screen.getByLabelText('Senha'), {
+    target: { value: 'Senha-de-teste-123' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Criar minha conta' }));
+  await waitFor(() => expect(auth.signUp).toHaveBeenCalled());
+  expect(auth.signUp).toHaveBeenCalledWith(
+    expect.objectContaining({
+      email: 'atleta@example.com',
+      options: expect.objectContaining({
+        data: { name: 'Atleta' },
+      }),
+    }),
+  );
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+test('informa configuração pendente quando Supabase não entrega sessão no cadastro', async () => {
   auth.signUp.mockResolvedValue({ data: { session: null }, error: null });
   mount();
   fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }));
@@ -29,16 +56,8 @@ test('cadastro usa Supabase Auth e mostra a confirmação de email sem criar ses
     target: { value: 'Senha-de-teste-123' },
   });
   fireEvent.click(screen.getByRole('button', { name: 'Criar minha conta' }));
-  await waitFor(() =>
-    expect(screen.getByRole('status')).toHaveTextContent('confirme o cadastro'),
-  );
-  expect(auth.signUp).toHaveBeenCalledWith(
-    expect.objectContaining({
-      email: 'atleta@example.com',
-      options: expect.objectContaining({
-        emailRedirectTo: expect.stringContaining('/auth/callback'),
-      }),
-    }),
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Desative “Confirm email”',
   );
 });
 test('login usa signInWithPassword e apresenta falhas de autenticação', async () => {

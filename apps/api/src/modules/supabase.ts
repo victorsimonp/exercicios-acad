@@ -10,6 +10,8 @@ const client = createClient(env.SUPABASE_URL, env.SUPABASE_PUBLISHABLE_KEY, {
 });
 export async function verifyAccessToken(token: string) {
   const { data, error } = await client.auth.getUser(token);
+  // With Confirm email disabled, Supabase sets email_confirmed_at automatically.
+  // Keep validating the real Auth identity rather than trusting client input.
   if (
     error ||
     !data.user ||

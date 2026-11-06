@@ -21,7 +21,9 @@ O Docker **não é necessário para executar a aplicação com Supabase**. Ele p
 
 ## Primeiro acesso após a migração
 
-O perfil e os dados antigos foram preservados, mas **a senha e os cookies antigos não são reutilizados**. Na tela inicial, escolha **Criar conta**, informe o **mesmo email da conta antiga**, defina uma senha e confirme o email enviado pelo Supabase. Ao entrar com o email confirmado, o backend vincula o perfil existente e mantém seus programas e sessões; não cria um segundo perfil para o mesmo email.
+O perfil e os dados antigos foram preservados, mas **a senha e os cookies antigos não são reutilizados**. Na tela inicial, escolha **Criar conta**, informe o **mesmo email da conta antiga** e defina uma senha. Com **Confirm email** desativado no Supabase, o cadastro retorna uma sessão e entra diretamente, sem envio de confirmação. O backend vincula o perfil existente e mantém seus programas e sessões. Como esse vínculo usa o email informado, desativar a confirmação permite reivindicar um perfil antigo ainda não vinculado sem comprovar a posse do email.
+
+Para habilitar esse fluxo no projeto hospedado, acesse **Authentication → Sign In / Providers → Email**, desative **Confirm email** e salve. Alternativamente, execute `node supabase/configure-auth.mjs --apply` com `SUPABASE_ACCESS_TOKEN` no ambiente local; o script configura `mailer_autoconfirm: true`. A alteração local do código não muda essa opção no serviço. Contas criadas antes da alteração que continuam pendentes podem precisar de confirmação administrativa pelo Supabase; não há atualização em massa dessas contas neste script.
 
 Para um email novo, o primeiro acesso autenticado cria um perfil e o programa inicial de oito semanas. A senha nunca é gravada pelas tabelas da aplicação. O campo legado `passwordHash` foi mantido apenas para compatibilidade de schema e está vazio no banco remoto; `AuthSession` permanece bloqueada e vazia.
 
@@ -35,11 +37,11 @@ No painel Supabase, acesse **Authentication → URL Configuration**:
 
 Painel do projeto atual: https://supabase.com/dashboard/project/exvcchwfftfafaovkydj/auth/url-configuration
 
-O MCP disponível não oferece uma operação para alterar essa configuração; aplique-a no painel. O cadastro já envia a origem atual do navegador com o caminho `/auth/callback`; esse endereço precisa estar permitido no Supabase. Atualize também `WEB_ORIGIN` na API para o domínio de produção. Mantenha a confirmação de email habilitada: ela protege o vínculo do perfil importado. Para recuperação, use **Esqueci minha senha** e abra o link no mesmo navegador da solicitação (fluxo PKCE).
+O MCP disponível não oferece uma operação para alterar essa configuração; aplique-a no painel ou pelo script abaixo. Atualize também `WEB_ORIGIN` na API para o domínio de produção. O cadastro entra diretamente com a sessão retornada pelo Supabase. Para recuperação, use **Esqueci minha senha** e abra o link no mesmo navegador da solicitação (fluxo PKCE).
 
 Alternativamente, execute `node supabase/configure-auth.mjs --apply` com `SUPABASE_ACCESS_TOKEN` definido apenas no ambiente local (token de gerenciamento com permissões de leitura e escrita de Auth no projeto). O script aplica a URL de produção, acrescenta os redirects exatos sem apagar os existentes, publica os 13 templates e assuntos em português e consulta novamente a configuração para verificar cada campo. Sem `--apply`, imprime somente a configuração proposta, sem acessar o projeto. Os arquivos ficam em `supabase/templates`, com o mesmo visual do template de confirmação. Para regenerá-los, execute `node supabase/generate-templates.mjs`.
 
-O envio padrão do Supabase mantém sua cota de emails, que não pode ser removida pela aplicação. Para aumentar a cota, configure SMTP próprio em **Authentication → Emails → SMTP Settings** e ajuste **Authentication → Rate Limits** conforme a capacidade do provedor. O script não altera limites nem desativa confirmação de email ou notificações de segurança. Referência: [limites de autenticação](https://supabase.com/docs/guides/auth/rate-limits).
+O envio padrão do Supabase mantém sua cota de emails, que não pode ser removida pela aplicação. Para aumentar a cota, configure SMTP próprio em **Authentication → Emails → SMTP Settings** e ajuste **Authentication → Rate Limits** conforme a capacidade do provedor. O script desativa a exigência de confirmação no cadastro, sem alterar limites ou notificações de segurança. Recuperação de senha continua dependendo do envio de email. Referência: [limites de autenticação](https://supabase.com/docs/guides/auth/rate-limits).
 
 Em **Authentication → Email Templates → Confirm signup**, defina o assunto como **Confirme seu email | Hypertrophy Tracker** e cole o conteúdo de [`supabase/templates/confirmation.html`](supabase/templates/confirmation.html) no corpo HTML. O template usa as cores do site e `{{ .ConfirmationURL }}` para preservar a verificação do token e o redirect do Supabase. Salvar o arquivo no repositório não publica o template no serviço hospedado.
 
@@ -87,7 +89,7 @@ Fastify → transação Prisma → SET LOCAL ROLE ht_api
                           → políticas RLS → PostgreSQL Supabase
 ```
 
-O cliente Supabase do navegador cuida de cadastro, login, logout, confirmação e recuperação de senha. A API não aceita IDs de usuário enviados pelo cliente como identidade. Ela valida o token no Supabase Auth, exige email confirmado e rejeita usuários anônimos. Metadados editáveis pelo usuário servem apenas ao nome de exibição, nunca à autorização.
+O cliente Supabase do navegador cuida de cadastro, login, logout e recuperação de senha. A API não aceita IDs de usuário enviados pelo cliente como identidade. Ela valida o token no Supabase Auth e rejeita usuários anônimos. O campo `email_confirmed_at` é preenchido automaticamente pelo Supabase quando **Confirm email** está desativado; a API continua validando esse campo. Metadados editáveis pelo usuário servem apenas ao nome de exibição, nunca à autorização.
 
 Cada requisição autenticada utiliza uma transação com papel `ht_api` e contexto definido por `SET LOCAL`. O contexto não permanece no pool após a transação. AsyncLocalStorage encaminha as consultas e transações dos módulos existentes para essa mesma conexão. O retorno só é enviado depois do commit; falhas desfazem a requisição.
 
@@ -199,7 +201,7 @@ Volume = carga normalizada × repetições de séries de trabalho concluídas. C
 ## Erros comuns
 
 - **Variáveis Supabase ausentes:** preencha os exemplos e reinicie Vite/API; variáveis `VITE_*` entram no build.
-- **Senha antiga não entra:** crie o acesso Supabase com o mesmo email e confirme-o. O perfil antigo será vinculado após autenticação verificada.
+- **Senha antiga não entra:** crie o acesso Supabase com o mesmo email. Com **Confirm email** desativado, a entrada é imediata. O perfil antigo será vinculado após autenticação.
 - **Email abre outra porta/domínio:** revise Site URL e Redirect URLs no painel Auth.
 - **Link expirado ou sem sessão PKCE:** solicite outro e use o mesmo navegador da solicitação.
 - **`SELF_SIGNED_CERT_IN_CHAIN`:** confira a CA oficial e o parâmetro `sslrootcert`; mantenha `verify-full`.

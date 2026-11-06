@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildConfig } from './configure-auth.mjs';
 
-test('configura produção e preserva redirects existentes sem alterar limites ou autenticação', () => {
+test('habilita cadastro sem confirmação e preserva redirects e limites existentes', () => {
   const config = buildConfig({
     uri_allow_list: 'https://preview.example.com/auth/callback',
   });
@@ -16,7 +16,7 @@ test('configura produção e preserva redirects existentes sem alterar limites o
     ),
   );
   assert.equal(config.rate_limit_email_sent, undefined);
-  assert.equal(config.mailer_autoconfirm, undefined);
+  assert.equal(config.mailer_autoconfirm, true);
 });
 
 test('todos os 13 templates têm conteúdo em português e tokens adequados', () => {

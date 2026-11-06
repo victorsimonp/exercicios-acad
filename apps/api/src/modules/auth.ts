@@ -20,10 +20,7 @@ export async function authenticate(
   if (!match) return fail(401, 'Entre na sua conta para continuar.');
   const identity = await verifyToken(match[1]);
   if (!identity)
-    return fail(
-      401,
-      'Sessão inválida ou expirada. Entre novamente e confirme seu email.',
-    );
+    return fail(401, 'Sessão inválida ou expirada. Entre novamente.');
   request.identity = identity;
 }
 export function protectRoutes(
