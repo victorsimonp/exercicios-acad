@@ -1,6 +1,7 @@
 export type HealthResponse = { status: 'ok' };
 export type User = {
   id: string;
+  authUserId?: string | null;
   name: string;
   email: string;
   settings: {

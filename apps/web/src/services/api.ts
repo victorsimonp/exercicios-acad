@@ -14,10 +14,16 @@ export async function api<T>(
   method = 'GET',
   body?: unknown,
 ): Promise<T> {
+  const { data: authData, error } = await getSupabase().auth.getSession();
+  if (error) throw error;
+  if (!authData.session)
+    throw new ApiError(401, 'Entre na sua conta para continuar.');
   const response = await fetch(`${baseUrl}/api/v1${path}`, {
     method,
-    credentials: 'include',
-    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+    headers: {
+      Authorization: `Bearer ${authData.session.access_token}`,
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await response.json();
@@ -36,3 +42,4 @@ export function queryString(
     if (v !== undefined && v !== '') q.set(k, String(v));
   return q.size ? `?${q}` : '';
 }
+import { getSupabase } from '../lib/supabase';

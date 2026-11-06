@@ -1,4 +1,9 @@
-import { beforeAll, afterAll, describe, expect, test } from 'vitest';
+import { beforeAll, afterAll, describe, expect, test, vi } from 'vitest';
+import type { VerifiedIdentity } from './modules/identity.js';
+const identities = vi.hoisted(() => new Map<string, VerifiedIdentity>());
+vi.mock('./modules/supabase.js', () => ({
+  verifyAccessToken: async (token: string) => identities.get(token) ?? null,
+}));
 import type {
   Program,
   Session,
@@ -7,7 +12,7 @@ import type {
   Workout,
 } from '@ht/shared';
 import { buildApp } from './app.js';
-import { prisma } from './db.js';
+import { prisma, asIdentity, migrationDatabase, closeDatabases } from './db.js';
 import { seedCatalog } from './modules/seed.js';
 import { cleanupUser } from './testing/cleanup-user.js';
 const app = buildApp('http://localhost:5173');
@@ -26,7 +31,7 @@ const request = async (
     method,
     url: `/api/v1${url}`,
     payload,
-    headers: auth ? { cookie: auth } : {},
+    headers: auth ? { authorization: `Bearer ${auth}` } : {},
   });
 const body = (e: Prescription) => ({
   exerciseId: e.exerciseId,
@@ -41,24 +46,28 @@ const body = (e: Prescription) => ({
   notes: e.notes,
 });
 beforeAll(async () => {
+  if (
+    !['localhost', '127.0.0.1'].includes(
+      new URL(process.env.DATABASE_URL ?? '').hostname,
+    )
+  )
+    throw new Error(
+      'Esta suíte usa PostgreSQL local. Use o smoke específico para o Supabase.',
+    );
   await seedCatalog();
   await app.ready();
   for (let i = 0; i < 2; i++) {
-    const r = await request(
-      'POST',
-      '/auth/register',
-      {
-        name: 'Teste automatizado',
-        email: `test-${crypto.randomUUID()}@example.invalid`,
-        password: 'Senha-Teste-12345',
-      },
-      '',
-    );
-    expect(r.statusCode).toBe(201);
+    const token = crypto.randomUUID();
+    identities.set(token, {
+      id: crypto.randomUUID(),
+      name: 'Teste automatizado',
+      email: `test-${crypto.randomUUID()}@example.invalid`,
+    });
+    const r = await request('GET', '/auth/me', undefined, token);
+    expect(r.statusCode).toBe(200);
     users.push(r.json().id);
-    const c = (r.headers['set-cookie'] as string).split(';')[0];
-    if (i === 0) cookie = c;
-    else otherCookie = c;
+    if (i === 0) cookie = token;
+    else otherCookie = token;
   }
   p = (await request('GET', '/programs')).json<Program[]>()[0];
 }, 30000);
@@ -67,9 +76,101 @@ afterAll(async () => {
   for (const userId of users)
     await prisma.$transaction((tx) => cleanupUser(tx, userId));
   await app.close();
-  await prisma.$disconnect();
+  await closeDatabases();
 }, 30000);
 describe.sequential('API com PostgreSQL real', () => {
+  test('RLS filtra uma consulta sem filtro de proprietário e bloqueia escrita cruzada', async () => {
+    const [a, b] = [...identities.values()];
+    const visible = await asIdentity(a, (tx) => tx.trainingProgram.findMany());
+    expect(visible.length).toBeGreaterThan(0);
+    expect(visible.every((program) => program.userId === users[0])).toBe(true);
+    expect(
+      await asIdentity(b, (tx) =>
+        tx.trainingProgram.findUnique({ where: { id: p.id } }),
+      ),
+    ).toBeNull();
+    await expect(
+      asIdentity(b, (tx) =>
+        tx.trainingProgram.update({
+          where: { id: p.id },
+          data: { name: 'Não autorizado' },
+        }),
+      ),
+    ).rejects.toThrow();
+    await expect(
+      asIdentity(a, (tx) =>
+        tx.trainingProgram.update({
+          where: { id: p.id },
+          data: { userId: users[1] },
+        }),
+      ),
+    ).rejects.toThrow();
+    expect(
+      (
+        await migrationDatabase.trainingProgram.findUniqueOrThrow({
+          where: { id: p.id },
+        })
+      ).userId,
+    ).toBe(users[0]);
+  });
+  test('RLS das tabelas filhas impede inserir série em sessão de outro usuário', async () => {
+    const [a, b] = [...identities.values()];
+    const response = await request('POST', '/sessions', {
+      workoutTemplateId: p.workouts[0].id,
+      weekNumber: 1,
+      idempotencyKey: crypto.randomUUID(),
+    });
+    expect(response.statusCode).toBe(201);
+    const exercise = response.json<Session>().exercises[0];
+    expect(
+      await asIdentity(b, (tx) =>
+        tx.sessionExercise.findUnique({ where: { id: exercise.id } }),
+      ),
+    ).toBeNull();
+    await expect(
+      asIdentity(b, (tx) =>
+        tx.exerciseSet.create({
+          data: {
+            sessionExerciseId: exercise.id,
+            setNumber: 99,
+            prescribedRepsMin: 6,
+            prescribedRepsMax: 10,
+          },
+        }),
+      ),
+    ).rejects.toThrow();
+    const own = await asIdentity(a, (tx) =>
+      tx.sessionExercise.findUnique({ where: { id: exercise.id } }),
+    );
+    expect(own?.id).toBe(exercise.id);
+  });
+  test('perfil legado só é vinculado após identidade verificada e mantém os programas', async () => {
+    const email = `legacy-${crypto.randomUUID()}@example.invalid`;
+    const legacy = await migrationDatabase.user.create({
+      data: { name: 'Legado de teste', email },
+    });
+    users.push(legacy.id);
+    const old = await migrationDatabase.trainingProgram.create({
+      data: {
+        userId: legacy.id,
+        name: 'Ciclo preservado',
+        startDate: new Date(),
+      },
+    });
+    const token = crypto.randomUUID();
+    identities.set(token, {
+      id: crypto.randomUUID(),
+      email,
+      name: 'Nome do cadastro',
+    });
+    const r = await request('GET', '/auth/me', undefined, token);
+    expect(r.statusCode).toBe(200);
+    expect(r.json().id).toBe(legacy.id);
+    const profiles = await migrationDatabase.trainingProgram.findMany({
+      where: { userId: legacy.id },
+    });
+    expect(profiles.map((p) => p.id)).toEqual([old.id]);
+  });
   test('agenda, reagenda, vincula a sessão e preserva as datas anteriores', async () => {
     const w = p.workouts[0];
     const created = await request('POST', '/schedules', {

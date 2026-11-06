@@ -6,14 +6,19 @@ import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { ZodError } from 'zod';
-import { authRoutes, authenticate } from './modules/auth.js';
+import { authRoutes, protectRoutes } from './modules/auth.js';
 import { exerciseRoutes } from './modules/exercises.js';
 import { programRoutes } from './modules/programs.js';
 import { sessionRoutes } from './modules/sessions.js';
 import { analyticsRoutes } from './modules/analytics.js';
 import { documentRoutes } from './modules/docs.js';
 import { scheduleRoutes } from './modules/schedules.js';
-export function buildApp(origin: string, logger = false) {
+import type { verifyAccessToken } from './modules/supabase.js';
+export function buildApp(
+  origin: string,
+  logger = false,
+  options: { verifyToken?: typeof verifyAccessToken } = {},
+) {
   const app = Fastify({ logger });
   // Zod validates every body in its handler. Do not let AJV coerce null numeric inputs to zero.
   app.setValidatorCompiler(() => (data) => ({ value: data }));
@@ -39,11 +44,11 @@ export function buildApp(origin: string, logger = false) {
         title: 'Hypertrophy Tracker API',
         version: '1.0.0',
         description:
-          'API autenticada por cookie HttpOnly. Valores de carga em kg, base total/por lado/por halter. Listas de exercícios e sessões são paginadas.',
+          'API autenticada por token Bearer validado pelo Supabase Auth. Consultas executadas com RLS por usuário. Cargas em kg, com base total/por lado/por halter. Exercícios e sessões são paginados.',
       },
       components: {
         securitySchemes: {
-          cookieAuth: { type: 'apiKey', in: 'cookie', name: 'ht_session' },
+          supabaseAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
         },
       },
     },
@@ -51,20 +56,17 @@ export function buildApp(origin: string, logger = false) {
       schema: {
         summary: `${url}`,
         ...schema,
-        security:
-          url.includes('/auth/') || url.includes('/health')
-            ? []
-            : [{ cookieAuth: [] }],
+        security: url.includes('/health') ? [] : [{ supabaseAuth: [] }],
       },
       url,
     }),
   });
   app.register(swaggerUi, { routePrefix: '/docs' });
   documentRoutes(app);
-  app.register(authRoutes, { prefix: '/api/v1' });
   app.register(
     async (protectedApp) => {
-      protectedApp.addHook('preHandler', authenticate);
+      protectRoutes(protectedApp, options.verifyToken);
+      await authRoutes(protectedApp);
       await exerciseRoutes(protectedApp);
       await programRoutes(protectedApp);
       await sessionRoutes(protectedApp);

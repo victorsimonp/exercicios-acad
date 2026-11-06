@@ -1,174 +1,199 @@
 ﻿# Hypertrophy Tracker
 
-Plataforma local funcional de treinamento com React/TypeScript, API Fastify e persistência PostgreSQL via Prisma. Não usa resultados demonstrativos como dados do usuário.
+Plataforma de treinamento com React/TypeScript, Fastify, Prisma e **PostgreSQL gerenciado pelo Supabase**. A autenticação utiliza Supabase Auth. O backend continua responsável por prescrição, sessões, progressão, métricas e auditoria.
 
-## Iniciar
+## Executar nesta máquina
 
-Requisitos: Node.js 24 LTS, pnpm 10, Docker Desktop com Linux containers. No PowerShell, dentro desta pasta:
+Os arquivos de ambiente locais já foram configurados para o projeto Supabase `exercicios-acad`. Na raiz do repositório:
 
 ```powershell
-pnpm.cmd install
-pnpm.cmd db:up
+pnpm.cmd install --frozen-lockfile
 pnpm.cmd db:generate
-pnpm.cmd --filter @ht/api exec prisma migrate deploy
-pnpm.cmd db:seed
 pnpm.cmd dev
 ```
 
-Acesse **http://localhost:5173**, clique em **Criar conta** e cadastre nome, email e senha com pelo menos 10 caracteres. O cadastro cria seu programa de oito semanas, com oito fichas A/B, quatro dias por foco e os 32 exercícios originais. As cargas começam vazias. Não existe conta ou senha padrão.
-
-- Frontend: http://localhost:5173
+- Aplicação: http://localhost:5173
 - API: http://localhost:3333/api/v1
-- Swagger/OpenAPI: http://localhost:3333/docs e http://localhost:3333/docs/json
-- Saúde da API: http://localhost:3333/api/v1/health
-- Conexão PostgreSQL: `pnpm.cmd db:check`
+- Documentação OpenAPI: http://localhost:3333/docs
+- Verificação do banco e contexto RLS: `pnpm.cmd db:check`
 
-`Ctrl+C` encerra frontend e API. `pnpm.cmd db:stop` para o banco preservando os dados. `docker compose ps` verifica o serviço. Evite `docker compose down -v`, que remove o volume do banco.
+O Docker **não é necessário para executar a aplicação com Supabase**. Ele permanece disponível para o banco antigo e para os testes locais. Para iniciar separadamente: `pnpm.cmd --filter @ht/api dev` e `pnpm.cmd --filter @ht/web dev`.
 
-Para iniciar separadamente, use `pnpm.cmd --filter @ht/api dev` e `pnpm.cmd --filter @ht/web dev`, em terminais diferentes.
+## Primeiro acesso após a migração
 
-## Configuração de ambiente
+O perfil e os dados antigos foram preservados, mas **a senha e os cookies antigos não são reutilizados**. Na tela inicial, escolha **Criar conta**, informe o **mesmo email da conta antiga**, defina uma senha e confirme o email enviado pelo Supabase. Ao entrar com o email confirmado, o backend vincula o perfil existente e mantém seus programas e sessões; não cria um segundo perfil para o mesmo email.
 
-Os arquivos locais existentes são ignorados pelo Git. Em outra máquina, copie os exemplos:
+Para um email novo, o primeiro acesso autenticado cria um perfil e o programa inicial de oito semanas. A senha nunca é gravada pelas tabelas da aplicação. O campo legado `passwordHash` foi mantido apenas para compatibilidade de schema e está vazio no banco remoto; `AuthSession` permanece bloqueada e vazia.
+
+### URLs dos emails de autenticação
+
+No painel Supabase, acesse **Authentication → URL Configuration**:
+
+- **Site URL:** `http://localhost:5173`
+- **Redirect URLs:** `http://localhost:5173/auth/callback` e `http://localhost:5173/auth/redefinir-senha`
+
+Painel do projeto atual: https://supabase.com/dashboard/project/exvcchwfftfafaovkydj/auth/url-configuration
+
+O MCP disponível não oferece uma operação para alterar essa configuração; confira-a no painel. Ao hospedar o frontend, configure a URL HTTPS de produção nesses mesmos campos e atualize `WEB_ORIGIN` na API. Mantenha a confirmação de email habilitada: ela protege o vínculo do perfil importado. Para recuperação, use **Esqueci minha senha** e abra o link no mesmo navegador da solicitação (fluxo PKCE).
+
+## Variáveis de ambiente
+
+Em outra máquina, copie os exemplos e preencha os ambientes localmente, sem enviar segredos pelo chat:
 
 ```powershell
-Copy-Item .env.example .env
 Copy-Item apps/api/.env.example apps/api/.env
 Copy-Item apps/web/.env.example apps/web/.env
 ```
 
-| Arquivo         | Variável                                            | Finalidade                                                      |
-| --------------- | --------------------------------------------------- | --------------------------------------------------------------- |
-| `.env`          | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Inicialização do container PostgreSQL                           |
-| `apps/api/.env` | `DATABASE_URL`                                      | Conexão PostgreSQL; use a mesma senha configurada no Docker     |
-| `apps/api/.env` | `PORT`                                              | Porta da API; padrão 3333                                       |
-| `apps/api/.env` | `HOST`                                              | Interface da API; padrão 127.0.0.1                              |
-| `apps/api/.env` | `WEB_ORIGIN`                                        | Origem exata permitida pelo CORS; padrão http://localhost:5173  |
-| `apps/api/.env` | `NODE_ENV`                                          | `production` ativa cookies Secure; desenvolvimento pode omitir  |
-| `apps/web/.env` | `VITE_API_URL`                                      | URL pública da API, sem `/api/v1`; padrão http://localhost:3333 |
+| Ambiente | Variável                        | Uso                                                                           |
+| -------- | ------------------------------- | ----------------------------------------------------------------------------- |
+| API      | `DATABASE_URL`                  | Login `ht_runtime`, usado pelo Fastify; não tem bypass de RLS                 |
+| API      | `DIRECT_URL`                    | Login `ht_migrator`, usado por migrations, seed e ferramentas administrativas |
+| API      | `SUPABASE_URL`                  | URL pública do projeto Supabase                                               |
+| API      | `SUPABASE_PUBLISHABLE_KEY`      | Chave publicável para validar tokens com Supabase Auth                        |
+| API      | `DATABASE_POOL_MAX`             | Máximo do pool; padrão 5                                                      |
+| API      | `PORT`, `HOST`, `WEB_ORIGIN`    | Padrões 3333, 127.0.0.1 e http://localhost:5173                               |
+| Web      | `VITE_API_URL`                  | URL pública da API; local: http://localhost:3333                              |
+| Web      | `VITE_SUPABASE_URL`             | URL pública do projeto Supabase                                               |
+| Web      | `VITE_SUPABASE_PUBLISHABLE_KEY` | Chave `sb_publishable_...`, permitida no navegador                            |
 
-Segredos ficam apenas no backend e no ambiente Docker. Nunca inclua credenciais em `VITE_*`. Alterar a senha do `.env` não altera uma senha já inicializada no volume do PostgreSQL. Reinicie os servidores após mudar o ambiente.
+O frontend valida a configuração e informa variáveis ausentes. Nunca coloque senha do PostgreSQL, `DIRECT_URL`, chave secret ou service-role em variáveis `VITE_*`. **Nenhuma chave administrativa do Supabase é necessária para esta aplicação.**
 
-## Arquitetura e pastas
+As conexões PostgreSQL usam Session Pooler na porta 5432 e TLS `verify-full`, com a CA oficial em `certs/supabase-ca.crt`. A URL usa `sslrootcert=../../certs/supabase-ca.crt`, relativa ao workspace `apps/api`, de onde os scripts são executados. Em outro servidor, preserve esse caminho ou ajuste o certificado. Não desative a validação TLS.
+
+## Arquitetura
 
 ```text
-apps/
-  api/
-    prisma/schema.prisma          Entidades e relacionamentos
-    prisma/migrations/            Migrations versionadas
-    src/modules/
-      auth.ts                     Contas, cookies e autenticação
-      exercises.ts                Catálogo e metadados
-      programs.ts                 Ciclos, fichas e edição de prescrição
-      sessions.ts                 Execução, cópias históricas e auditoria
-      schedules.ts                Agenda e reagendamentos
-      analytics.ts                Métricas e sugestões
-      training.ts                 Regras puras de volume/periodização/progressão
-      seed.ts                     Catálogo e criação do programa inicial
-      schemas.ts                  Validações Zod
-      docs.ts                     Contratos da documentação OpenAPI
-      initial-exercises.json      Transcrição dos 32 exercícios do documento
-    src/testing/                  Limpeza isolada das contas de teste
-    src/*.test.ts                 Integração com PostgreSQL real
-  web/
-    src/app/                      Contexto de conta, navegação e layout
-    src/pages/                    Dashboard, fichas, execução, catálogo,
-                                  periodização, histórico, evolução e preferências
-    src/components/               Editor, séries, cronômetro, agenda e UI
-    src/lib/                      Utilitários e validação de séries
-    src/services/                 Cliente HTTP autenticado
-    e2e/                          Fluxos reais em desktop e celular
-packages/shared/src/index.ts      Tipos de contratos compartilhados
+React → Supabase Auth → sessão PKCE e renovação do token
+React → Bearer token → Fastify → auth.getUser(token)
+Fastify → transação Prisma → SET LOCAL ROLE ht_api
+                          → identidade verificada no contexto JWT
+                          → políticas RLS → PostgreSQL Supabase
 ```
 
-Frontend: React 19, TypeScript strict, Vite, Tailwind, base shadcn/ui, React Router, TanStack Query, React Hook Form, Zod, Recharts e Lucide. Estado de servidor fica no TanStack Query; contexto React cobre conta e semana selecionada, sem necessidade de Zustand.
+O cliente Supabase do navegador cuida de cadastro, login, logout, confirmação e recuperação de senha. A API não aceita IDs de usuário enviados pelo cliente como identidade. Ela valida o token no Supabase Auth, exige email confirmado e rejeita usuários anônimos. Metadados editáveis pelo usuário servem apenas ao nome de exibição, nunca à autorização.
 
-Backend: Fastify, TypeScript strict, Prisma 7 com adapter PostgreSQL, Zod, cookies HttpOnly, rate limiting, CORS e Swagger. Senhas usam scrypt com salt aleatório; tokens de sessão são aleatórios e somente seu hash fica no banco. A sessão de autenticação expira em 30 dias. Todas as operações persistentes passam pela API e consultas de recursos privados verificam o proprietário.
+Cada requisição autenticada utiliza uma transação com papel `ht_api` e contexto definido por `SET LOCAL`. O contexto não permanece no pool após a transação. AsyncLocalStorage encaminha as consultas e transações dos módulos existentes para essa mesma conexão. O retorno só é enviado depois do commit; falhas desfazem a requisição.
 
-## Funcionalidades
+### Perfis e RLS
 
-- Dashboard com semana/foco, próximo treino, séries, volume, duração média, atividades e recordes reais.
-- Fichas A/B fiéis aos nomes, séries-alvo, repetições e faixas de descanso fornecidos.
-- Ciclo editável de 1–52 semanas, alternância A/B, séries fixas ou individuais, RIR e deload; duplicação, reinício e arquivamento sem apagar sessões.
-- Treinos personalizados; adição, remoção, substituição e edição de exercícios. Reordenação por arrastar ou botões acessíveis.
-- Edição do modelo, sobreposição para futuras sessões e edição apenas da sessão iniciada. Mudanças de modelo não alteram sessões existentes.
-- Catálogo com busca sem acentos na API, filtros por grupo, região, equipamento e movimento; detalhes, cópias personalizadas e desativação lógica.
-- Séries de aquecimento, aproximação e trabalho separadas; aquecimento pode ser pulado com confirmação persistida. Preparatórias não entram no volume efetivo.
-- Registro progressivo de carga, repetições, RIR, técnica, conclusão e notas. Salvamento automático com rascunho local e feedback de falha, sem tratar rascunhos como histórico definitivo.
-- Sessões pausáveis e recuperáveis após recarga. Criação idempotente; revisão de série e transação com trava por sessão evitam sobrescritas concorrentes.
-- Descanso baseado em timestamp, com ajuste de tempo, pausa, retomada, reinício e indicação de término. O fim previsto fica na API; a pausa do cronômetro usa cache local.
-- Histórico paginado com filtros, detalhes, comparação de duas sessões, correções auditadas e exportação CSV de todas as páginas do filtro.
-- Gráficos de carga por exercício e base, séries musculares diretas e participação secundária estimada, volume A/B e calendário.
-- Agenda com agendamento, datas anteriores de reagendamentos, cancelamento, indicação de treinos não realizados e vínculo com a sessão. A adesão usa agendamentos vencidos não cancelados, sem presumir faltas quando não há planejamento.
-- Sugestões de progressão dupla com justificativa persistida; aceitar, editar ou ignorar sem aplicar cargas automaticamente.
-- Tema escuro/claro, layout responsivo, navegação inferior no celular, labels e navegação de teclado nos diálogos.
+`User.authUserId` é único e, no Supabase, referencia `auth.users(id)`. Os IDs antigos da aplicação foram mantidos para preservar os relacionamentos. Um perfil importado sem vínculo só pode ser reivindicado pelo backend após validação do mesmo email confirmado; a função fica no schema privado, sem execução para `anon` ou `authenticated`.
 
-## Regras de dados
+Todas as tabelas públicas, inclusive as técnicas, têm RLS habilitada e forçada. Programas, fichas, sessões, séries, recomendações e logs validam o proprietário; tabelas filhas seguem o relacionamento até o recurso do usuário. Referências a exercícios ou pais de terceiros são bloqueadas. Clientes autenticados podem consultar os dados permitidos, mas operações de negócio continuam pela API, com as validações e a auditoria existentes. O catálogo global é somente leitura para os clientes; exercícios personalizados pertencem ao criador.
 
-As semanas 1–2 usam duas séries por exercício; 3–7 usam o alvo individual; a semana 8 usa uma série e 3–4 RIR para deload, dentro da faixa de 1–2 séries solicitada. Volume, foco e RIR são configuráveis. Nas semanas com volume-alvo, RIR individual da ficha vale sob a meta padrão 1–2; outra faixa semanal substitui essa meta. Semana de deload nunca gera aumento sugerido.
+Papéis separados: `ht_runtime` não tem bypass; `ht_api` não tem login; `ht_migrator` possui bypass exclusivamente para administração/importação. A API não utiliza o migrador para atender requisições. Veja `docs/supabase-access.md`. O provisionador temporário de credenciais foi removido do banco.
 
-Cada sessão guarda nome, grupo principal, estimativas secundárias, foco, semana, prescrição e base de carga. Trocar ou remover exercícios da ficha não altera essas cópias. Alterações de séries têm revisões e auditoria consultável por proprietário em `/api/v1/audit/:id`. Correções de sessões concluídas recalculam as sugestões, invalidando decisões anteriores sobre a sugestão antiga.
+## Estrutura
 
-RIR é **informado pelo usuário**, não calculado a partir da carga: 0 significa falha técnica, 2 significa estimar mais duas repetições possíveis. Valores aceitos: inteiros de 0 a 10. Concluir uma série exige carga não negativa, repetições positivas e RIR. Carga zero é válida; ausência de carga é `null`.
+```text
+apps/api/prisma/schema.prisma       Modelos Prisma e índices
+apps/api/prisma/migrations/         Histórico canônico de migrations SQL
+apps/api/src/modules/auth.ts        Bearer e proteção das rotas
+apps/api/src/modules/supabase.ts    Validação no Supabase Auth
+apps/api/src/modules/profile.ts     Vínculo do perfil e programa inicial
+apps/api/src/db.ts                  Pool, transação e contexto RLS
+apps/api/src/modules/               Treinos, sessões, periodização e analytics
+apps/api/src/testing/               Suporte de testes e transferência
+apps/web/src/lib/supabase.ts        Cliente Supabase e validação de ambiente
+apps/web/src/pages/auth-callback.tsx Confirmação e redefinição de senha
+apps/web/src/pages/                 Páginas de treinamento
+apps/web/src/components/            Editor, registro de séries, agenda e timer
+packages/shared/src/index.ts        Tipos compartilhados
+certs/supabase-ca.crt               CA pública oficial do PostgreSQL
+```
 
-Cargas usam `Decimal(10,3)` no PostgreSQL; respostas JSON as representam como strings. Valores de entrada da API são números em kg. Bases:
+## Migrations e seed
 
-- `total`: peso total, incluindo a barra quando aplicável.
-- `per_side`: peso de cada lado, excluindo a barra; métrica normalizada multiplica por dois.
-- `per_dumbbell`: peso de cada halter; métrica normalizada multiplica por dois.
-
-Para movimento unilateral ou equipamento com outra convenção, escolha **total** e registre a carga total daquela série. A base pode ser alterada em cada registro; gráficos e recordes separam as bases. Séries com bases ou cargas diferentes não geram sugestão de aumento conjunta.
-
-Volume de carga = soma de carga normalizada × repetições **das séries de trabalho concluídas**. Essa métrica não mede diretamente estímulo hipertrófico e não deve comparar exercícios diferentes. Participações secundárias são estimativas configuráveis, separadas das séries diretas e preservadas na sessão; o seed não inventa ponderações biomecânicas.
-
-Progressão exige todas as séries de trabalho completas, topo da faixa, RIR na meta e técnica adequada. O incremento disponível arredonda a sugestão; seu percentual final pode superar a referência. Dados insuficientes, séries incompletas, deload e metas não atingidas não geram aumento. As sugestões são opcionais.
-
-## Endpoints
-
-Todos com prefixo `/api/v1`, exceto Swagger. Consulte os corpos no `/docs`.
-
-| Recurso          | Operações                                                                                                                                                      |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Autenticação     | `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `PATCH /auth/me`                                                               |
-| Exercícios       | `GET/POST /exercises`, `GET/PATCH/DELETE /exercises/:id`                                                                                                       |
-| Grupos           | `GET/POST /muscles`                                                                                                                                            |
-| Programas        | `GET/POST /programs`, `GET/PATCH /programs/:id`, `POST /programs/:id/duplicate`, `/restart`, `/archive`                                                        |
-| Treinos          | `GET/POST /workouts`, `GET/PATCH /workouts/:id`, `POST /workouts/:id/exercises`, `PATCH/DELETE /workouts/:id/exercises/:itemId`, `PATCH /workouts/:id/reorder` |
-| Periodização     | `GET/PATCH /periodization/:programId`, `GET /periodization/:programId/current`                                                                                 |
-| Sessões          | `POST/GET /sessions`, `GET/PATCH /sessions/:id`, `POST /sessions/:id/complete`, `POST /sessions/:id/sets`, `PATCH /sessions/:id/sets/:setId`                   |
-| Edição de sessão | `PATCH /sessions/:id/exercises/:itemId`, `POST /sessions/:id/exercises/:itemId/skip-warmup`                                                                    |
-| Agenda           | `GET/POST /schedules`, `PATCH /schedules/:id`                                                                                                                  |
-| Analytics        | `GET /analytics/dashboard`, `/analytics/volume`, `/analytics/progression`, `/analytics/attendance`, `/analytics/exercises/:id`                                 |
-| Progressão       | `GET /progression/recommendations`, `POST /progression/recommendations/:id/accept`, `/dismiss`                                                                 |
-| Auditoria        | `GET /audit/:id` (ID da série ou item de prescrição)                                                                                                           |
-
-Exercícios e sessões retornam `{ items, total, page, pageSize }`, com `pageSize` até 100. Exercícios aceitam `search` e `muscle` (ID do grupo). Sessões aceitam `focus`, `from`, `to`, `exerciseId`, `muscle` (nome histórico), `status`, `programId` e `weekNumber`. Analytics aceita `exerciseId`, `from` e `to`. Listas de programas pertencem à conta autenticada. A agenda retorna até 500 registros.
-
-Use cookies com `credentials: include`. Requisições do navegador que alteram dados precisam da origem configurada. Há limite geral de 300 requisições/minuto por IP e de 10/minuto nas rotas de cadastro/login. Erros retornam `{ error: string }` com status 400, 401, 403, 404, 409, 429 ou 500 conforme o caso. Na série, envie a `revision` recebida; conflito retorna 409, preservando o rascunho para revisão.
-
-## Verificações
-
-Com PostgreSQL iniciado e migrations aplicadas:
+Prisma foi mantido. As migrations anteriores continuam intactas; as novas adicionam identidade, políticas RLS, grants e índices. O histórico do Prisma remoto foi alinhado às migrations aplicadas pelo MCP, com seus checksums.
 
 ```powershell
-pnpm.cmd typecheck
-pnpm.cmd lint
-pnpm.cmd test
-pnpm.cmd test:e2e
-pnpm.cmd build
-pnpm.cmd db:check
+pnpm.cmd --filter @ht/api exec prisma migrate status
+pnpm.cmd --filter @ht/api exec prisma migrate deploy
+pnpm.cmd db:generate
+pnpm.cmd db:seed
 ```
 
-Validação desta entrega: **32 testes de regras/API**, **3 testes de componentes** e **4 testes E2E** (dois fluxos em desktop e celular) passaram. TypeScript strict, ESLint, build de produção e conexão PostgreSQL foram verificados; as quatro migrations estão aplicadas. A API compilada foi iniciada e respondeu saúde/documentação, bloqueando acesso anônimo aos programas com HTTP 401.
+`migrate deploy` utiliza `DIRECT_URL`. **Não use `migrate dev`, `db push`, reset ou comandos de limpeza no projeto remoto.** Desenvolva e teste novas migrations no PostgreSQL local, revise o SQL e só então aplique na nuvem. O seed é idempotente, não preenche cargas e não sobrescreve exercícios existentes. Em um ambiente já importado, não é necessário executá-lo para iniciar a API. O catálogo é uma etapa administrativa, não uma escrita privilegiada a cada inicialização do servidor.
 
-Os testes de integração usam PostgreSQL real e criam contas isoladas, removidas ao final. Para um banco exclusivo de teste, exporte `DATABASE_URL` antes de executar; aplique as migrations nele. Não há fallback para banco mockado.
+Em novas instalações Supabase, os papéis de conexão precisam ser provisionados antes das migrations. Gere senhas aleatórias e armazene-as no ambiente; nunca reutilize uma credencial de cliente como credencial administrativa. As configurações de Auth e as tabelas do schema `auth` continuam sob gestão do Supabase.
 
-Testes de navegador usam o Chrome instalado em `C:/Program Files/Google/Chrome/Application/chrome.exe`, nos tamanhos desktop e Pixel 7. Em outro ambiente, configure `CHROME_PATH` com o executável Chromium/Chrome. Playwright inicia e encerra os servidores necessários; capturas e traces ficam em `apps/web/test-results` e são ignorados pelo Git. A limpeza final remove exclusivamente as contas descartáveis `e2e-<UUID>@example.invalid` com nome `Atleta E2E`.
+## Dados migrados e rollback
 
-O build gera `apps/web/dist` e `apps/api/dist`. A API compilada inicia com `pnpm.cmd --filter @ht/api start`; o JSON do programa é copiado no build, sem depender de arquivos fonte em produção. O frontend estático exige fallback para `index.html`. Para publicar em produção, configure HTTPS, cookies Secure (`NODE_ENV=production`), frontend e API no mesmo site, origem permitida e banco com backups. Nenhuma publicação externa foi realizada nesta entrega local.
+A transferência foi transacional e validada por contagem e SHA-256 do conteúdo normalizado das 14 tabelas de dados. Foram preservados:
 
-Para mudanças no banco, edite o schema, execute `pnpm.cmd --filter @ht/api exec prisma migrate dev --name nome_da_alteracao` e `pnpm.cmd db:generate`. O seed é idempotente e preserva alterações e cargas existentes.
+- 1 perfil, 3 programas e 24 semanas;
+- 24 fichas, 96 prescrições e 32 exercícios;
+- 1 sessão, 4 exercícios de sessão e 11 séries;
+- 13 grupos musculares e 2 registros de auditoria.
 
-## Limitação de fonte
+`AuthSession` e os hashes de senha não foram transferidos. Os dados de execução e as cópias de prescrição não foram modificados.
 
-**O PDF “Protocolo de Treino — Victor Simon Paulo.pdf” não está no repositório.** O catálogo inicial contém somente os 32 exercícios explicitamente listados no documento da solicitação, preservando seus nomes. A importação do catálogo completo aguarda esse PDF. Grupos e classificações da aplicação são metadados revisáveis; estimativas de participação secundária não são prescrições clínicas.
+O backup completo está em `.backups/before-supabase-*.dump`; o relatório de comparação está em `.backups/supabase-transfer-report.json`. Ambos são locais, ignorados pelo Git e contêm informações privadas: proteja-os como os demais dados pessoais.
+
+O volume Docker antigo foi preservado. `.env.local-before-supabase` guarda a conexão anterior. Para recuperar o ambiente antigo, é preciso usar também o código anterior à migração de autenticação; trocar apenas a URL não restaura o login antigo. Antes de qualquer rollback, exporte os registros novos criados no Supabase. Não remova o volume antigo antes de confirmar seu acesso aos dados migrados.
+
+## Testes
+
+Os testes de integração verificam PostgreSQL e RLS reais **localmente**, com o verificador de identidade simulado. Um bloqueio explícito impede executar essa suíte contra um banco remoto.
+
+Nesta máquina, `apps/api/.env.test` já está separado do ambiente principal. Em outra máquina:
+
+```powershell
+Copy-Item .env.example .env
+Copy-Item apps/api/.env.test.example apps/api/.env.test
+Copy-Item apps/web/.env.test.local.example apps/web/.env.test.local
+pnpm.cmd db:up
+```
+
+Configure a senha do banco local nos arquivos do Docker e em `apps/api/.env.test`. Nesse arquivo, tanto `DATABASE_URL` quanto `DIRECT_URL` devem apontar para localhost. Aplique as migrations locais:
+
+```powershell
+pnpm.cmd --filter @ht/api exec node --env-file=.env.test node_modules/prisma/build/index.js migrate deploy
+pnpm.cmd test
+pnpm.cmd test:e2e
+pnpm.cmd typecheck
+pnpm.cmd lint
+pnpm.cmd build
+```
+
+Os testes E2E usam API em localhost:3334, frontend em localhost:5174 e um provedor de identidade simulado em localhost:54321. Esse servidor só inicia com `NODE_ENV=test` e conexão PostgreSQL local. O servidor de produção nunca importa essa simulação. Os testes cobrem desktop e Pixel 7, registro e recuperação de séries, histórico, edição, reordenação, agenda e periodização.
+
+**Não foram criadas contas de teste no Supabase**, conforme solicitado. O login real com email confirmado e a entrega dos emails precisam ser validados usando sua própria conta. Testes de componentes verificam que cadastro, login e recuperação chamam os métodos corretos do cliente Supabase; isso não substitui a confirmação de entrega dos emails.
+
+### Verificações da migração
+
+- Contagens e checksums da transferência conferidos.
+- Conexão PostgreSQL remota com TLS e contexto RLS validada.
+- Supabase Auth respondeu HTTP 200; email habilitado, cadastro permitido e confirmação exigida.
+- Consultas remotas sob duas identidades de diagnóstico não enxergaram registros privados; o catálogo global permaneceu disponível.
+- Testes locais tentam consultas sem filtro de proprietário, escrita cruzada, troca de dono e acesso a tabelas filhas; essas tentativas são bloqueadas.
+- 39 testes de regras/API/autenticação e 6 testes de componentes passaram; os 4 E2E locais passaram.
+- O verificador de segurança do Supabase foi executado; o resultado final fica no resumo da entrega.
+
+## Endpoints e funcionalidades preservadas
+
+A API usa `/api/v1`. Os endpoints de negócio continuam com os mesmos caminhos: `/exercises`, `/muscles`, `/programs`, `/workouts`, `/periodization`, `/sessions`, `/schedules`, `/analytics`, `/progression/recommendations` e `/audit`. `/auth/me` permanece para consultar/editar o perfil. Cadastro, login, logout e recuperação agora são feitos diretamente no Supabase Auth; as antigas rotas de senha/cookie foram retiradas. `/docs` documenta a API e aceita token Bearer.
+
+Continuam disponíveis: fichas A/B, ciclo editável, deload, criação e edição de treinos, substituição e reordenação de exercícios, registro progressivo de carga/repetições/RIR, rascunho temporário, cronômetro por timestamp, histórico, comparação e CSV, gráficos, volume direto/secundário, sugestões de progressão e agenda.
+
+Semanas 1–2 usam duas séries, 3–7 o alvo individual, e a semana 8 usa uma série com 3–4 RIR para deload. Preparatórias não contam como séries efetivas. Cargas no PostgreSQL usam `Decimal`; `null` é ausência de registro, e zero é uma carga válida.
+
+Volume = carga normalizada × repetições de séries de trabalho concluídas. Carga por lado/halter é multiplicada por dois; por lado exclui a barra. Use base total para outra convenção/unilateralidade. Gráficos separam as bases. A métrica não mede diretamente estímulo hipertrófico e não deve comparar exercícios distintos. Progressão exige todas as séries completas, técnica adequada, topo da faixa e RIR na meta; sugestões não alteram automaticamente as cargas.
+
+## Erros comuns
+
+- **Variáveis Supabase ausentes:** preencha os exemplos e reinicie Vite/API; variáveis `VITE_*` entram no build.
+- **Senha antiga não entra:** crie o acesso Supabase com o mesmo email e confirme-o. O perfil antigo será vinculado após autenticação verificada.
+- **Email abre outra porta/domínio:** revise Site URL e Redirect URLs no painel Auth.
+- **Link expirado ou sem sessão PKCE:** solicite outro e use o mesmo navegador da solicitação.
+- **`SELF_SIGNED_CERT_IN_CHAIN`:** confira a CA oficial e o parâmetro `sslrootcert`; mantenha `verify-full`.
+- **Conexão direta IPv6 falha:** use o Session Pooler do painel Connect, com usuário `papel.PROJECT_REF` e porta 5432.
+- **403 de origem:** `WEB_ORIGIN` deve ser a origem exata do frontend.
+- **RLS retorna vazio:** confira o token Bearer, a confirmação do email e o vínculo `authUserId`; nunca resolva isso desativando RLS.
+- **Testes recusam banco remoto:** configure `.env.test` com os dois URLs locais. Não remova a proteção.
+
+## Produção e limitação do catálogo
+
+O build gera `apps/web/dist` e `apps/api/dist`. Inicie a API compilada com `pnpm.cmd --filter @ht/api start`. Para hospedar, configure os ambientes do frontend/API, a CA, origem permitida e URLs do Supabase Auth; o frontend precisa de fallback para `index.html`. Nenhuma publicação na Vercel ou no Render foi realizada nesta migração.
+
+O PDF “Protocolo de Treino — Victor Simon Paulo.pdf” continua indisponível. O catálogo inicial mantém somente os 32 exercícios fornecidos na solicitação, com os nomes preservados. A importação do catálogo completo aguarda esse documento.

@@ -1,8 +1,17 @@
-import { prisma } from './db.js';
+import { database, asIdentity, closeDatabases } from './db.js';
 try {
-  await prisma.$queryRaw`SELECT 1`;
-  await prisma.setupCheck.count();
-  console.log('PostgreSQL e migration acessíveis pelo Prisma.');
+  await database.$queryRaw`SELECT 1`;
+  const count = await asIdentity(
+    {
+      id: '00000000-0000-0000-0000-000000000001',
+      email: 'diagnostic@example.invalid',
+      name: 'Diagnóstico',
+    },
+    (tx) => tx.exercise.count({ where: { userId: null } }),
+  );
+  console.log(
+    `PostgreSQL acessível; contexto RLS ht_api validado; ${count} exercícios globais disponíveis.`,
+  );
 } finally {
-  await prisma.$disconnect();
+  await closeDatabases();
 }

@@ -14,7 +14,9 @@ model User {
   id String @id @default(cuid())
   name String
   email String @unique
-  passwordHash String
+  // Legacy column retained for rollback only; Supabase Auth owns all new credentials.
+  passwordHash String?
+  authUserId String? @unique @db.Uuid
   settings Json @default("{}")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -66,6 +68,7 @@ model Exercise {
   snapshots SessionExercise[]
   recommendations ProgressionRecommendation[]
   @@index([userId, normalizedName])
+  @@index([primaryMuscleGroupId])
 }
 model ExerciseMuscle {
   exerciseId String
@@ -75,6 +78,7 @@ model ExerciseMuscle {
   exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
   muscleGroup MuscleGroup @relation(fields: [muscleGroupId], references: [id])
   @@id([exerciseId, muscleGroupId])
+  @@index([muscleGroupId])
 }
 model TrainingProgram {
   id String @id @default(cuid())
@@ -136,6 +140,7 @@ model WorkoutExercise {
   notes String @default("")
   futureOverride Json?
   @@index([workoutTemplateId, order])
+  @@index([exerciseId])
 }
 model WorkoutSession {
   id String @id @default(cuid())
@@ -163,6 +168,9 @@ model WorkoutSession {
   schedule WorkoutSchedule?
   @@unique([userId, idempotencyKey])
   @@index([userId, startedAt])
+  @@index([programId])
+  @@index([programWeekId])
+  @@index([workoutTemplateId])
 }
 model SessionExercise {
   id String @id @default(cuid())
@@ -184,6 +192,7 @@ model SessionExercise {
   notes String @default("")
   sets ExerciseSet[]
   @@index([sessionId, order])
+  @@index([exerciseId])
 }
 model WorkoutSchedule {
   id String @id @default(cuid())
@@ -198,6 +207,7 @@ model WorkoutSchedule {
   session WorkoutSession? @relation(fields: [sessionId], references: [id])
   notes String @default("")
   @@index([userId, scheduledDate])
+  @@index([workoutTemplateId])
 }
 model ExerciseSet {
   id String @id @default(cuid())
@@ -235,6 +245,7 @@ model ProgressionRecommendation {
   createdAt DateTime @default(now())
   @@unique([sessionId, exerciseId])
   @@index([userId, status])
+  @@index([exerciseId])
 }
 model ExerciseChangeLog {
   id String @id @default(cuid())

@@ -8,6 +8,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Program, User } from '@ht/shared';
 import { api, ApiError } from '../services/api';
+import { getSupabase, supabase, supabaseConfigError } from '../lib/supabase';
 type Context = {
   user: User;
   programs: Program[];
@@ -32,10 +33,40 @@ export function AccountGate({
   login: ReactNode;
 }) {
   const client = useQueryClient();
+  const [authReady, setAuthReady] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
+  const [authError, setAuthError] = useState<Error | null>(null);
+  useEffect(() => {
+    if (!supabase) {
+      setAuthReady(true);
+      return;
+    }
+    let active = true;
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (!active) return;
+      setAuthError(error);
+      setSignedIn(!!data.session);
+      setAuthReady(true);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSignedIn(!!session);
+        setAuthReady(true);
+        if (event === 'SIGNED_OUT') client.clear();
+        else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')
+          void client.invalidateQueries({ queryKey: ['me'] });
+      },
+    );
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
+  }, [client]);
   const user = useQuery({
     queryKey: ['me'],
     queryFn: () => api<User>('/auth/me'),
     retry: false,
+    enabled: authReady && signedIn,
   });
   const programs = useQuery({
     queryKey: ['programs'],
@@ -67,7 +98,20 @@ export function AccountGate({
     document.documentElement.dataset.theme =
       user.data?.settings.theme ?? 'dark';
   }, [user.data]);
-  if (user.isPending)
+  if (supabaseConfigError)
+    return (
+      <div className="center-screen">
+        <p className="error">{supabaseConfigError}</p>
+      </div>
+    );
+  if (authError)
+    return (
+      <div className="center-screen">
+        <p className="error">{authError.message}</p>
+      </div>
+    );
+  if (authReady && !signedIn) return login;
+  if (!authReady || user.isPending)
     return <div className="center-screen">Carregando sua conta…</div>;
   if (user.error instanceof ApiError && user.error.status === 401) return login;
   if (user.error || programs.error)
@@ -104,9 +148,10 @@ export function AccountGate({
           await client.invalidateQueries();
         },
         logout: async () => {
-          await api('/auth/logout', 'POST');
+          const { error } = await getSupabase().auth.signOut();
+          if (error) throw error;
           client.clear();
-          await user.refetch();
+          setSignedIn(false);
         },
       }}
     >
