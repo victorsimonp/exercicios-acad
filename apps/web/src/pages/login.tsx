@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import '../lib/errors';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Activity, ArrowRight, Check } from 'lucide-react';
 import { getSupabase } from '../lib/supabase';

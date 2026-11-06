@@ -6,6 +6,8 @@ import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { ZodError } from 'zod';
+import { z } from 'zod';
+z.config(z.locales.pt());
 import { authRoutes, protectRoutes } from './modules/auth.js';
 import { exerciseRoutes } from './modules/exercises.js';
 import { programRoutes } from './modules/programs.js';
@@ -28,7 +30,13 @@ export function buildApp(
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   });
   app.register(cookie);
-  app.register(rateLimit, { max: 300, timeWindow: '1 minute' });
+  app.register(rateLimit, {
+    max: 300,
+    timeWindow: '1 minute',
+    errorResponseBuilder: () => ({
+      error: 'Muitas solicitações. Aguarde um pouco e tente novamente.',
+    }),
+  });
   app.addHook('onRequest', async (request, reply) => {
     if (
       !['GET', 'HEAD', 'OPTIONS'].includes(request.method) &&
@@ -78,6 +86,9 @@ export function buildApp(
   app.get<{ Reply: HealthResponse }>('/api/v1/health', async () => ({
     status: 'ok',
   }));
+  app.setNotFoundHandler((_request, reply) => {
+    reply.code(404).send({ error: 'Endereço não encontrado.' });
+  });
   app.setErrorHandler((error, request, reply) => {
     request.log.error(error);
     if (error instanceof ZodError)
@@ -106,9 +117,17 @@ export function buildApp(
       error:
         status >= 500
           ? 'Erro interno do servidor'
-          : error instanceof Error
-            ? error.message
-            : 'Requisição inválida',
+          : status === 429
+            ? 'Muitas solicitações. Aguarde um pouco e tente novamente.'
+            : typeof error === 'object' &&
+                error &&
+                'code' in error &&
+                typeof error.code === 'string' &&
+                error.code.startsWith('FST_')
+              ? 'Requisição inválida. Confira os dados enviados.'
+              : error instanceof Error
+                ? error.message
+                : 'Requisição inválida',
     });
   });
   return app;

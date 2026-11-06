@@ -5,6 +5,7 @@ import { Check, RotateCcw } from 'lucide-react';
 import { api } from '../services/api';
 import { basisLabel } from './common';
 import { draftSchema } from '../lib/validation';
+import { errorMessage } from '../lib/errors';
 type Draft = {
   weight: number | null;
   actualReps: number | null;
@@ -228,7 +229,7 @@ export function SetRow({
       )}
       {mutation.error && (
         <div className="error">
-          {mutation.error.message}
+          {errorMessage(mutation.error)}
           <button
             onClick={() => {
               mutation.reset();

@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { X, Plus, ArrowUpRight, Dumbbell } from 'lucide-react';
 import { Button } from './ui/button';
+import { errorMessage } from '../lib/errors';
 export const number = (v: number) =>
   v.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 export const date = (v: string) =>
@@ -55,7 +56,7 @@ export function Empty({
 export function ErrorMessage({ error }: { error: Error | null | undefined }) {
   return error ? (
     <p role="alert" className="error">
-      {error.message}
+      {errorMessage(error)}
     </p>
   ) : null;
 }

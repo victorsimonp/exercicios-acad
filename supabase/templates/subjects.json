@@ -1,0 +1,15 @@
+{
+  "confirmation": "Confirme seu email | Hypertrophy Tracker",
+  "invite": "Você foi convidado | Hypertrophy Tracker",
+  "recovery": "Redefina sua senha | Hypertrophy Tracker",
+  "magic_link": "Seu link de acesso | Hypertrophy Tracker",
+  "email_change": "Confirme seu novo email | Hypertrophy Tracker",
+  "reauthentication": "Confirme sua identidade | Hypertrophy Tracker",
+  "password_changed_notification": "Sua senha foi alterada | Hypertrophy Tracker",
+  "email_changed_notification": "Seu email foi alterado | Hypertrophy Tracker",
+  "phone_changed_notification": "Seu telefone foi alterado | Hypertrophy Tracker",
+  "identity_linked_notification": "Método de acesso adicionado | Hypertrophy Tracker",
+  "identity_unlinked_notification": "Método de acesso removido | Hypertrophy Tracker",
+  "mfa_factor_enrolled_notification": "Verificação em duas etapas adicionada | Hypertrophy Tracker",
+  "mfa_factor_unenrolled_notification": "Verificação em duas etapas removida | Hypertrophy Tracker"
+}

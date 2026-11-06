@@ -13,6 +13,20 @@ export function AuthCallback({ recovery = false }: { recovery?: boolean }) {
     let active = true;
     void (async () => {
       const auth = getSupabase().auth;
+      const params = new URLSearchParams(window.location.search);
+      const fragment = new URLSearchParams(window.location.hash.slice(1));
+      const providerError =
+        params.get('error_code') ?? fragment.get('error_code');
+      if (providerError || params.has('error') || fragment.has('error'))
+        throw Object.assign(
+          new Error(
+            'Não foi possível confirmar o acesso. Solicite um novo email.',
+          ),
+          {
+            name: 'AuthCallbackError',
+            code: providerError,
+          },
+        );
       const result = await auth.getSession();
       if (result.error) throw result.error;
       if (!result.data.session)
