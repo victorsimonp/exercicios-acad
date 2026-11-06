@@ -38,6 +38,13 @@ O MCP disponível não oferece uma operação para alterar essa configuração; 
 
 ## Variáveis de ambiente
 
+Na Vercel, o frontend também aceita `API_URL`, `SUPABASE_URL` e
+`SUPABASE_PUBLISHABLE_KEY`, sem prefixo. Esses nomes têm prioridade sobre os
+equivalentes `VITE_*`, que continuam funcionando localmente. O Vite inclui apenas
+esses três valores públicos no navegador. Depois de alterá-los, faça um novo
+deploy; localmente, reinicie o Vite. Não coloque conexões PostgreSQL ou chaves
+administrativas no ambiente do frontend.
+
 Em outra máquina, copie os exemplos e preencha os ambientes localmente, sem enviar segredos pelo chat:
 
 ```powershell

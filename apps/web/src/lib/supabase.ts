@@ -5,10 +5,14 @@ const result = z
     VITE_SUPABASE_URL: z.url(),
     VITE_SUPABASE_PUBLISHABLE_KEY: z.string().startsWith('sb_publishable_'),
   })
-  .safeParse(import.meta.env);
+  .safeParse({
+    VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
+    VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env
+      .VITE_SUPABASE_PUBLISHABLE_KEY,
+  });
 export const supabaseConfigError = result.success
   ? null
-  : 'Configure VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY em apps/web/.env e reinicie o frontend.';
+  : 'Configure SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY no ambiente do frontend e faça um novo deploy ou reinicie o servidor local. Os nomes com prefixo VITE_ também são aceitos.';
 export const supabase = result.success
   ? createClient(
       result.data.VITE_SUPABASE_URL,
