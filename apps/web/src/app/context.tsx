@@ -50,6 +50,7 @@ export function AccountGate({
     });
     const { data: listener } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        setAuthError(null);
         setSignedIn(!!session);
         setAuthReady(true);
         if (event === 'SIGNED_OUT') client.clear();
@@ -148,7 +149,9 @@ export function AccountGate({
           await client.invalidateQueries();
         },
         logout: async () => {
-          const { error } = await getSupabase().auth.signOut();
+          const { error } = await getSupabase().auth.signOut({
+            scope: 'local',
+          });
           if (error) throw error;
           client.clear();
           setSignedIn(false);

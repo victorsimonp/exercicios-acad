@@ -31,6 +31,9 @@ test('cadastro entra com a sessão real sem solicitar confirmação de email', a
   fireEvent.change(screen.getByLabelText('Senha'), {
     target: { value: 'Senha-de-teste-123' },
   });
+  fireEvent.change(screen.getByLabelText('Confirmar senha'), {
+    target: { value: 'Senha-de-teste-123' },
+  });
   fireEvent.click(screen.getByRole('button', { name: 'Criar minha conta' }));
   await waitFor(() => expect(auth.signUp).toHaveBeenCalled());
   expect(auth.signUp).toHaveBeenCalledWith(
@@ -53,6 +56,9 @@ test('informa configuração pendente quando Supabase não entrega sessão no ca
     target: { value: 'atleta@example.com' },
   });
   fireEvent.change(screen.getByLabelText('Senha'), {
+    target: { value: 'Senha-de-teste-123' },
+  });
+  fireEvent.change(screen.getByLabelText('Confirmar senha'), {
     target: { value: 'Senha-de-teste-123' },
   });
   fireEvent.click(screen.getByRole('button', { name: 'Criar minha conta' }));
@@ -92,5 +98,45 @@ test('recuperação encaminha ao Supabase a URL de redefinição', async () => {
       'atleta@example.com',
       { redirectTo: expect.stringContaining('/auth/redefinir-senha') },
     ),
+  );
+});
+
+test('cadastro impede envio quando a confirmação da senha é diferente', async () => {
+  mount();
+  fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }));
+  fireEvent.change(screen.getByLabelText('Email'), {
+    target: { value: 'atleta@example.com' },
+  });
+  fireEvent.change(screen.getByLabelText('Senha'), {
+    target: { value: 'Senha-de-teste-123' },
+  });
+  fireEvent.change(screen.getByLabelText('Confirmar senha'), {
+    target: { value: 'Outra-senha-123' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Criar minha conta' }));
+  expect(
+    await screen.findByText('As senhas não coincidem.'),
+  ).toBeInTheDocument();
+  expect(auth.signUp).not.toHaveBeenCalled();
+});
+
+test('login normaliza email e aceita senhas existentes menores que 10 caracteres', async () => {
+  auth.signInWithPassword.mockResolvedValue({
+    data: { session: {} },
+    error: null,
+  });
+  mount();
+  fireEvent.change(screen.getByLabelText('Email'), {
+    target: { value: 'ATLETA@EXAMPLE.COM' },
+  });
+  fireEvent.change(screen.getByLabelText('Senha'), {
+    target: { value: 'Abc123!' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Entrar na plataforma' }));
+  await waitFor(() =>
+    expect(auth.signInWithPassword).toHaveBeenCalledWith({
+      email: 'atleta@example.com',
+      password: 'Abc123!',
+    }),
   );
 });

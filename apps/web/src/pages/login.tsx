@@ -9,16 +9,37 @@ import { getSupabase } from '../lib/supabase';
 import { ErrorMessage } from '../components/common';
 const schema = z.object({
   name: z.string().max(100),
-  email: z.email('Informe um email válido.'),
-  password: z.string().min(10, 'Use ao menos 10 caracteres.').max(128),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .pipe(z.email('Informe um email válido.')),
+  password: z.string().min(1, 'Informe sua senha.').max(128),
+  confirmPassword: z.string(),
 });
 export function LoginPage() {
   const [registering, setRegistering] = useState(false);
   const [recovering, setRecovering] = useState(false);
   const client = useQueryClient();
   const form = useForm<z.infer<typeof schema>>({
-    resolver: zodResolver(schema),
-    defaultValues: { name: '', email: '', password: '' },
+    resolver: zodResolver(
+      schema.superRefine((data, ctx) => {
+        if (!registering) return;
+        if (data.password.length < 10)
+          ctx.addIssue({
+            code: 'custom',
+            path: ['password'],
+            message: 'Use ao menos 10 caracteres.',
+          });
+        if (data.password !== data.confirmPassword)
+          ctx.addIssue({
+            code: 'custom',
+            path: ['confirmPassword'],
+            message: 'As senhas não coincidem.',
+          });
+      }),
+    ),
+    defaultValues: { name: '', email: '', password: '', confirmPassword: '' },
   });
   const mutation = useMutation({
     mutationFn: async (d: z.infer<typeof schema>) => {
@@ -116,6 +137,16 @@ export function LoginPage() {
                     {...form.register('password')}
                   />
                 </label>
+                {registering && (
+                  <label>
+                    Confirmar senha
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      {...form.register('confirmPassword')}
+                    />
+                  </label>
+                )}
                 {Object.values(form.formState.errors).map((e, i) => (
                   <p className="error" key={i}>
                     {e.message}
@@ -137,6 +168,7 @@ export function LoginPage() {
                   className="text-button"
                   onClick={() => {
                     setRegistering(!registering);
+                    form.clearErrors();
                     mutation.reset();
                   }}
                 >
@@ -163,7 +195,7 @@ function PasswordRecovery({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState('');
   const request = useMutation({
     mutationFn: async () => {
-      const parsed = z.email('Informe um email válido.').parse(email);
+      const parsed = schema.shape.email.parse(email);
       const { error } = await getSupabase().auth.resetPasswordForEmail(parsed, {
         redirectTo: `${window.location.origin}/auth/redefinir-senha`,
       });
