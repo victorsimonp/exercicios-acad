@@ -29,12 +29,17 @@ Para um email novo, o primeiro acesso autenticado cria um perfil e o programa in
 
 No painel Supabase, acesse **Authentication → URL Configuration**:
 
-- **Site URL:** `http://localhost:5173`
-- **Redirect URLs:** `http://localhost:5173/auth/callback` e `http://localhost:5173/auth/redefinir-senha`
+- **Site URL:** `https://treinos-acad.vercel.app`
+- **Redirect URLs:** `https://treinos-acad.vercel.app/auth/callback` e `https://treinos-acad.vercel.app/auth/redefinir-senha`
+- Para desenvolvimento, adicione também `http://localhost:5173/auth/callback` e `http://localhost:5173/auth/redefinir-senha` à lista de redirects, mantendo a Site URL de produção.
 
 Painel do projeto atual: https://supabase.com/dashboard/project/exvcchwfftfafaovkydj/auth/url-configuration
 
-O MCP disponível não oferece uma operação para alterar essa configuração; confira-a no painel. Ao hospedar o frontend, configure a URL HTTPS de produção nesses mesmos campos e atualize `WEB_ORIGIN` na API. Mantenha a confirmação de email habilitada: ela protege o vínculo do perfil importado. Para recuperação, use **Esqueci minha senha** e abra o link no mesmo navegador da solicitação (fluxo PKCE).
+O MCP disponível não oferece uma operação para alterar essa configuração; aplique-a no painel. O cadastro já envia a origem atual do navegador com o caminho `/auth/callback`; esse endereço precisa estar permitido no Supabase. Atualize também `WEB_ORIGIN` na API para o domínio de produção. Mantenha a confirmação de email habilitada: ela protege o vínculo do perfil importado. Para recuperação, use **Esqueci minha senha** e abra o link no mesmo navegador da solicitação (fluxo PKCE).
+
+Em **Authentication → Email Templates → Confirm signup**, defina o assunto como **Confirme seu email | Hypertrophy Tracker** e cole o conteúdo de [`supabase/templates/confirmation.html`](supabase/templates/confirmation.html) no corpo HTML. O template usa as cores do site e `{{ .ConfirmationURL }}` para preservar a verificação do token e o redirect do Supabase. Salvar o arquivo no repositório não publica o template no serviço hospedado.
+
+Depois de salvar as configurações, faça um novo cadastro pelo site publicado e abra o novo email no mesmo navegador. Confira o visual e o retorno para `https://treinos-acad.vercel.app/auth/callback`, seguido da entrada na aplicação. Links de emails antigos podem continuar apontando para localhost; solicite um novo email. Os detalhes e o comportamento de fallback estão na [documentação de redirects](https://supabase.com/docs/guides/auth/redirect-urls) e as variáveis na [documentação de templates](https://supabase.com/docs/guides/auth/auth-email-templates).
 
 ## Variáveis de ambiente
 
