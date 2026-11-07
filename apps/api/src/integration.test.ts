@@ -15,6 +15,7 @@ import { buildApp } from './app.js';
 import { prisma, asIdentity, migrationDatabase, closeDatabases } from './db.js';
 import { seedCatalog } from './modules/seed.js';
 import { cleanupUser } from './testing/cleanup-user.js';
+import { volume } from './modules/training.js';
 const app = buildApp('http://localhost:5173');
 const users: string[] = [];
 let cookie = '';
@@ -79,6 +80,95 @@ afterAll(async () => {
   await closeDatabases();
 }, 30000);
 describe.sequential('API com PostgreSQL real', () => {
+  test('sessão ativa, exclusão isolada e finalização com séries extras e carga zero', async () => {
+    for (const count of [1, 3]) {
+      const created = await request('POST', '/sessions', {
+        workoutTemplateId: p.workouts[0].id,
+        weekNumber: 1,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      expect(created.statusCode).toBe(201);
+      const session = created.json<Session>();
+      const path = `/sessions/${session.id}`;
+      const exercise = session.exercises[0];
+      expect((await request('GET', '/sessions/active')).json().id).toBe(
+        session.id,
+      );
+      expect((await request('POST', `${path}/complete`)).statusCode).toBe(400);
+      for (const setType of ['warmup', 'work']) {
+        const extra = (
+          await request('POST', `${path}/sets`, {
+            sessionExerciseId: exercise.id,
+            setType,
+          })
+        ).json<ExerciseSet>();
+        if (setType === 'work') {
+          expect(
+            (
+              await request('PATCH', `${path}/sets/${extra.id}`, {
+                weight: 100,
+                actualReps: 10,
+                rir: 2,
+                completed: true,
+                weightBasis: 'total',
+                revision: 0,
+              })
+            ).statusCode,
+          ).toBe(200);
+        }
+        expect(
+          (
+            await request(
+              'DELETE',
+              `${path}/sets/${extra.id}`,
+              undefined,
+              otherCookie,
+            )
+          ).statusCode,
+        ).toBe(404);
+        expect(
+          (await request('DELETE', `${path}/sets/${extra.id}`)).statusCode,
+        ).toBe(204);
+        const read = (await request('GET', path)).json<Session>();
+        expect(read.exercises[0].sets.map((a) => a.id)).toEqual(
+          exercise.sets.map((a) => a.id),
+        );
+        expect(read.exercises[0].prescribedSetsSnapshot).toBe(
+          exercise.prescribedSetsSnapshot,
+        );
+        expect(volume(read.exercises.flatMap((e) => e.sets))).toBe(0);
+      }
+      for (let i = 0; i < count; i++) {
+        const extra = (
+          await request('POST', `${path}/sets`, {
+            sessionExerciseId: exercise.id,
+            setType: 'work',
+          })
+        ).json<ExerciseSet>();
+        expect(
+          (
+            await request('PATCH', `${path}/sets/${extra.id}`, {
+              weight: 0,
+              actualReps: 10,
+              rir: 0,
+              completed: true,
+              weightBasis: 'total',
+              revision: 0,
+            })
+          ).statusCode,
+        ).toBe(200);
+      }
+      expect((await request('POST', `${path}/complete`)).statusCode).toBe(200);
+      expect((await request('GET', path)).json().status).toBe('completed');
+      expect((await request('GET', '/sessions/active')).json()?.id).not.toBe(
+        session.id,
+      );
+      expect(
+        (await request('DELETE', `${path}/sets/${exercise.sets[0].id}`))
+          .statusCode,
+      ).toBe(409);
+    }
+  });
   test('RLS filtra uma consulta sem filtro de proprietário e bloqueia escrita cruzada', async () => {
     const [a, b] = [...identities.values()];
     const visible = await asIdentity(a, (tx) => tx.trainingProgram.findMany());

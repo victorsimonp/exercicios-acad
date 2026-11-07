@@ -6,6 +6,7 @@ import type {
   Prescription,
   Session as SessionType,
   SessionExercise,
+  ExerciseSet,
 } from '@ht/shared';
 import { Check, Clock, Pause, Pencil, Play, Plus, Trophy } from 'lucide-react';
 import { api } from '../services/api';
@@ -46,6 +47,7 @@ export function SessionPage() {
   const { id } = useParams();
   const { refresh } = useTraining();
   const [dirty, setDirty] = useState<Set<string>>(new Set());
+  const [removing, setRemoving] = useState<ExerciseSet | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [edit, setEdit] = useState<SessionExercise | null>(null);
   const [skip, setSkip] = useState<string | null>(null);
@@ -79,6 +81,16 @@ export function SessionPage() {
   const add = useMutation({
     mutationFn: (data: unknown) => api(`/sessions/${id}/sets`, 'POST', data),
     onSuccess: () => query.refetch(),
+  });
+  const remove = useMutation({
+    mutationFn: (setId: string) =>
+      api(`/sessions/${id}/sets/${setId}`, 'DELETE'),
+    onSuccess: async (_, setId) => {
+      localStorage.removeItem(`ht-draft:${id}:${setId}`);
+      dirtyChange(setId, false);
+      setRemoving(null);
+      await query.refetch();
+    },
   });
   const persistTimer = (value: string | null) =>
     update.mutate({ restEndsAt: value });
@@ -154,7 +166,9 @@ export function SessionPage() {
           )
         }
       />
-      <ErrorMessage error={update.error ?? complete.error ?? add.error} />
+      <ErrorMessage
+        error={update.error ?? complete.error ?? add.error ?? remove.error}
+      />
       {completed ? (
         <div className="notice">
           Você está visualizando o histórico. Correções nos resultados são
@@ -163,7 +177,7 @@ export function SessionPage() {
       ) : (
         <div className="session-progress">
           <span>
-            {done} de {work.length} séries de trabalho salvas
+            {done} de {work.length} séries de trabalho concluídas e salvas
           </span>
           <span>
             {dirty.size > 0
@@ -190,6 +204,14 @@ export function SessionPage() {
         = falha técnica; 2 = mais duas repetições. Aquecimento e aproximação não
         contam como volume de trabalho.
       </div>
+      {!completed && (
+        <p className="muted">
+          Preencha carga, repetições e RIR para concluir e salvar a série
+          automaticamente. Você pode desmarcá-la pelo botão de confirmação.
+          Excluir uma série afeta apenas esta sessão, sem alterar a ficha
+          original.
+        </p>
+      )}
       {s.exercises.map((e, index) => (
         <section className="panel session-exercise" key={e.id}>
           <header>
@@ -246,6 +268,14 @@ export function SessionPage() {
                   onSaved={() => void query.refetch()}
                   onDirty={dirtyChange}
                   historical={completed}
+                  onDelete={
+                    completed || remove.isPending
+                      ? undefined
+                      : (hasData) => {
+                          if (hasData) setRemoving(a);
+                          else remove.mutate(a.id);
+                        }
+                  }
                 />
               ))}
           </div>
@@ -340,6 +370,31 @@ export function SessionPage() {
           endsAt={s.restEndsAt}
           persist={persistTimer}
         />
+      )}
+      {removing && (
+        <Modal title="Excluir série?" onClose={() => setRemoving(null)}>
+          <p>
+            Esta série já possui dados registrados. Deseja realmente excluí-la?
+          </p>
+          <p>
+            A exclusão afeta apenas esta sessão, sem alterar a ficha original.
+          </p>
+          <ErrorMessage error={remove.error} />
+          <div className="modal-actions">
+            <button
+              disabled={remove.isPending}
+              onClick={() => setRemoving(null)}
+            >
+              Cancelar
+            </button>
+            <button
+              disabled={remove.isPending}
+              onClick={() => remove.mutate(removing.id)}
+            >
+              Excluir série
+            </button>
+          </div>
+        </Modal>
       )}
       {confirm && (
         <Modal title="Finalizar treino?" onClose={() => setConfirm(false)}>

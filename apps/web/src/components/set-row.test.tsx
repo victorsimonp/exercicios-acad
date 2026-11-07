@@ -18,7 +18,7 @@ const set: ExerciseSet = {
   notes: '',
   revision: 0,
 };
-function setup() {
+function setup(onDelete?: (hasData: boolean) => void) {
   const onComplete = vi.fn();
   const onDirty = vi.fn();
   render(
@@ -33,11 +33,47 @@ function setup() {
         restSeconds={120}
         onComplete={onComplete}
         onDirty={onDirty}
+        onDelete={onDelete}
       />
     </QueryClientProvider>,
   );
   return { onComplete, onDirty };
 }
+
+test('exclusão informa se a série vazia ou preenchida precisa de confirmação', () => {
+  const onDelete = vi.fn();
+  setup(onDelete);
+  fireEvent.click(screen.getByLabelText('Excluir série 1'));
+  expect(onDelete).toHaveBeenLastCalledWith(false);
+  fireEvent.change(screen.getByLabelText('Carga série 1'), {
+    target: { value: '0' },
+  });
+  fireEvent.click(screen.getByLabelText('Excluir série 1'));
+  expect(onDelete).toHaveBeenLastCalledWith(true);
+});
+
+test('carga zero, repetições e RIR concluem a série; dados parciais não concluem', () => {
+  setup();
+  fireEvent.change(screen.getByLabelText('Carga série 1'), {
+    target: { value: '0' },
+  });
+  fireEvent.change(screen.getByLabelText('Repetições série 1'), {
+    target: { value: '10' },
+  });
+  expect(screen.getByLabelText('Concluir série')).toBeDisabled();
+  fireEvent.change(screen.getByLabelText('RIR série 1'), {
+    target: { value: '0' },
+  });
+  expect(screen.getByLabelText('Desmarcar série')).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  fireEvent.click(screen.getByLabelText('Desmarcar série'));
+  expect(screen.getByLabelText('Concluir série')).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+});
 test('cargas vazias; não permite concluir sem dados e explica a base', () => {
   setup();
   expect(screen.getByLabelText('Carga série 1')).toHaveValue(null);
@@ -71,7 +107,10 @@ test('salva carga/reps/RIR na API e inicia descanso após confirmação do backe
     fireEvent.change(screen.getByLabelText('RIR série 1'), {
       target: { value: '2' },
     });
-    fireEvent.click(screen.getByLabelText('Concluir série'));
+    expect(screen.getByLabelText('Desmarcar série')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     expect(localStorage.getItem('ht-draft:s1:set1')).toContain('40');
     await waitFor(() => expect(onComplete).toHaveBeenCalledWith(120), {
       timeout: 2500,

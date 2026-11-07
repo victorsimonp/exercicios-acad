@@ -1,3 +1,4 @@
+import { hasValidSetResults } from '@ht/shared';
 import { z } from 'zod';
 export const idParams = z.object({
   id: z.string().min(1),
@@ -58,12 +59,7 @@ export const setSchema = z
     revision: z.number().int().min(0),
   })
   .refine(
-    (d) =>
-      !d.completed ||
-      (d.weight !== null &&
-        d.actualReps !== null &&
-        d.actualReps > 0 &&
-        d.rir !== null),
+    (d) => !d.completed || hasValidSetResults(d),
     'Informe carga, repetições e RIR antes de concluir.',
   );
 export const pagination = z.object({

@@ -11,6 +11,9 @@ test('cadastro, execução, persistência e histórico', async ({
     .getByLabel('Email', { exact: true })
     .fill(`e2e-${crypto.randomUUID()}@example.invalid`);
   await page.getByLabel('Senha', { exact: true }).fill('Senha-E2E-12345');
+  await page
+    .getByLabel('Confirmar senha', { exact: true })
+    .fill('Senha-E2E-12345');
   await page.getByRole('button', { name: 'Criar minha conta' }).click();
   await expect(
     page.getByRole('heading', { name: 'Vamos evoluir, Atleta.' }),
@@ -54,10 +57,17 @@ test('cadastro, execução, persistência e histórico', async ({
   await work.getByRole('spinbutton', { name: /Carga série/ }).fill('40');
   await work.getByRole('spinbutton', { name: /Repetições série/ }).fill('10');
   await work.getByRole('spinbutton', { name: /RIR série/ }).fill('2');
-  await work
-    .getByRole('button', { name: 'Concluir série', exact: true })
-    .click();
+  await expect(
+    work.getByRole('button', { name: 'Desmarcar série', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
   await expect(work.getByText('Salvo', { exact: true })).toBeVisible();
+  const sessionUrl = page.url();
+  const navigation = page.locator(
+    testInfo.project.name === 'mobile' ? '.mobile-nav' : '.sidebar',
+  );
+  await page.goto('/');
+  await navigation.getByRole('link', { name: /^Continuar/ }).click();
+  await expect(page).toHaveURL(sessionUrl);
   await page.reload();
   await expect(
     page.getByRole('button', { name: 'Pular aquecimento', exact: true }),
@@ -69,6 +79,44 @@ test('cadastro, execução, persistência e histórico', async ({
       .first()
       .getByRole('spinbutton', { name: /Carga série/ }),
   ).toHaveValue('40');
+  const rows = first.locator('.set-block');
+  const originalCount = await rows.count();
+  await first
+    .getByRole('button', { name: 'Série de trabalho', exact: true })
+    .click();
+  await expect(rows).toHaveCount(originalCount + 1);
+  await rows
+    .last()
+    .getByRole('button', { name: /Excluir série/ })
+    .click();
+  await expect(rows).toHaveCount(originalCount);
+  await first.getByRole('button', { name: 'Aquecimento', exact: true }).click();
+  await expect(rows).toHaveCount(originalCount + 1);
+  await rows
+    .last()
+    .getByRole('spinbutton', { name: /Carga série/ })
+    .fill('20');
+  await expect(rows.last().getByText('Salvo', { exact: true })).toBeVisible();
+  await rows
+    .last()
+    .getByRole('button', { name: /Excluir série/ })
+    .click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Cancelar', exact: true })
+    .click();
+  await expect(rows).toHaveCount(originalCount + 1);
+  await rows
+    .last()
+    .getByRole('button', { name: /Excluir série/ })
+    .click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Excluir série', exact: true })
+    .click();
+  await expect(rows).toHaveCount(originalCount);
+  await page.reload();
+  await expect(rows).toHaveCount(originalCount);
   await page.screenshot({
     path: testInfo.outputPath('session.png'),
     fullPage: true,
@@ -84,6 +132,9 @@ test('cadastro, execução, persistência e histórico', async ({
   await page.getByRole('button', { name: 'Concluir e salvar' }).click();
   await expect(
     page.getByRole('heading', { name: 'Treino concluído.' }),
+  ).toBeVisible();
+  await expect(
+    navigation.getByRole('link', { name: /^Iniciar/ }),
   ).toBeVisible();
   await expect(
     page.getByText(/Histórico insuficiente ou séries incompletas/).first(),
@@ -113,6 +164,9 @@ test('personaliza ficha, agenda e configura o ciclo', async ({ page }) => {
     .getByLabel('Email', { exact: true })
     .fill(`e2e-${crypto.randomUUID()}@example.invalid`);
   await page.getByLabel('Senha', { exact: true }).fill('Senha-E2E-12345');
+  await page
+    .getByLabel('Confirmar senha', { exact: true })
+    .fill('Senha-E2E-12345');
   await page.getByRole('button', { name: 'Criar minha conta' }).click();
   await expect(
     page.getByRole('heading', { name: 'Vamos evoluir, Atleta.' }),

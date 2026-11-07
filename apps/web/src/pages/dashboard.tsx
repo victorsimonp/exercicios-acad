@@ -16,32 +16,38 @@ import {
 import type { Analytics, Paginated, Session } from '@ht/shared';
 import { api } from '../services/api';
 import { useTraining } from '../app/context';
-import {
-  date,
-  Empty,
-  ErrorMessage,
-  number,
-  PageTitle,
-} from '../components/common';
+import { LoadingRows, Skeleton } from '../components/dashboard-loading';
+import { StartupStatus } from '../components/startup-status';
+import { date, Empty, number, PageTitle } from '../components/common';
 export function Dashboard() {
   const { user, program, weekNumber } = useTraining();
   const week = program?.weeks.find((w) => w.weekNumber === weekNumber);
   const analytics = useQuery({
     queryKey: ['analytics'],
-    queryFn: () => api<Analytics>('/analytics/dashboard'),
+    queryFn: ({ signal }) =>
+      api<Analytics>('/analytics/dashboard', 'GET', undefined, { signal }),
+    retry: false,
   });
   const history = useQuery({
     queryKey: ['recent-sessions'],
-    queryFn: () => api<Paginated<Session>>('/sessions?pageSize=5'),
+    queryFn: ({ signal }) =>
+      api<Paginated<Session>>('/sessions?pageSize=5', 'GET', undefined, {
+        signal,
+      }),
+    retry: false,
   });
   const stats = analytics.data;
   const plannedSessions = useQuery({
     queryKey: ['week-sessions', program?.id, weekNumber],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       api<Paginated<Session>>(
         `/sessions?programId=${program?.id}&weekNumber=${weekNumber}&status=completed&pageSize=100`,
+        'GET',
+        undefined,
+        { signal },
       ),
     enabled: !!program,
+    retry: false,
   });
   const completedDays = new Set(
     plannedSessions.data?.items
@@ -57,7 +63,7 @@ export function Dashboard() {
     program?.workouts.find(
       (w) => w.focus === week?.focus && !completedDays.has(w.id),
     ) ?? program?.workouts.find((w) => w.focus === week?.focus);
-  const active = history.data?.items.find((s) => s.status !== 'completed');
+  const { activeSession: active } = useTraining();
   return (
     <>
       <PageTitle
@@ -76,7 +82,17 @@ export function Dashboard() {
           </span>
         }
       />
-      <ErrorMessage error={analytics.error ?? history.error} />
+      {(analytics.error || history.error || plannedSessions.error) && (
+        <StartupStatus
+          pending={false}
+          error={analytics.error ?? history.error ?? plannedSessions.error}
+          retry={() => {
+            if (analytics.error) void analytics.refetch();
+            if (history.error) void history.refetch();
+            if (plannedSessions.error) void plannedSessions.refetch();
+          }}
+        />
+      )}
       <section className="hero-panel">
         <div className="hero-copy">
           <div className="pill">
@@ -163,8 +179,16 @@ export function Dashboard() {
               <m.icon size={18} />
             </div>
             <strong>
-              {analytics.isPending ? '—' : m.value}
-              <small>{m.unit}</small>
+              {!stats ? (
+                analytics.isPending ? (
+                  <Skeleton className="skeleton-value" />
+                ) : (
+                  '—'
+                )
+              ) : (
+                m.value
+              )}
+              {stats && <small>{m.unit}</small>}
             </strong>
             <p>{m.foot}</p>
           </article>
@@ -256,7 +280,11 @@ export function Dashboard() {
               Ver histórico <ArrowUpRight size={16} />
             </Link>
           </div>
-          {history.data?.items.length ? (
+          {history.isPending ? (
+            <LoadingRows />
+          ) : history.error && !history.data ? (
+            <p className="muted">Histórico indisponível.</p>
+          ) : history.data?.items.length ? (
             history.data.items.slice(0, 3).map((s) => (
               <Link className="activity-row" to={`/sessao/${s.id}`} key={s.id}>
                 <span className="activity-icon">
@@ -286,7 +314,11 @@ export function Dashboard() {
               <Trophy size={18} /> Suas conquistas
             </h2>
           </div>
-          {stats?.records.length ? (
+          {analytics.isPending ? (
+            <LoadingRows />
+          ) : analytics.error && !stats ? (
+            <p className="muted">Conquistas indisponíveis.</p>
+          ) : stats?.records.length ? (
             stats.records.slice(-3).map((r, i) => (
               <div className="record-row" key={i}>
                 <Trophy size={19} />

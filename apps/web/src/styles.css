@@ -1,4 +1,82 @@
 @import 'tailwindcss';
+.skeleton {
+  display: block;
+  width: 100%;
+  height: 14px;
+  border-radius: 5px;
+  background: var(--border);
+  animation: skeleton-pulse 1.8s ease-in-out infinite;
+}
+.skeleton-short {
+  width: 60%;
+}
+.skeleton-heading {
+  width: 80%;
+  height: 40px;
+  margin: 18px 0;
+}
+.skeleton-value {
+  width: 75px;
+  height: 34px;
+  margin: 5px 0;
+}
+.skeleton-button {
+  width: 170px;
+  height: 44px;
+  margin-top: 20px;
+}
+.skeleton-icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+.skeleton-avatar {
+  width: 20px;
+  height: 20px;
+}
+.skeleton-inline {
+  display: inline-block;
+  width: 30px;
+  vertical-align: middle;
+}
+.skeleton-focus {
+  width: 90px;
+  height: 110px;
+}
+.skeleton-row-copy {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+.dashboard-loading .hero-copy {
+  flex: 1;
+  max-width: 60%;
+}
+@media (max-width: 760px) {
+  .dashboard-loading .hero-copy {
+    max-width: 100%;
+  }
+}
+.startup-status {
+  margin-bottom: 20px;
+}
+.startup-status strong {
+  display: block;
+}
+.startup-status p {
+  margin: 8px 0;
+}
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
 .schedule-panel {
   margin-top: 24px;
 }

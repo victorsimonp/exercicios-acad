@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Link } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AccountGate } from './app/context';
-import { Layout } from './app/layout';
 import { LoginPage } from './pages/login';
 import { Dashboard } from './pages/dashboard';
 import { Workouts, WorkoutDetail } from './pages/workouts';
@@ -35,7 +34,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             element={
               <AccountGate login={<LoginPage />}>
                 <Routes>
-                  <Route element={<Layout />}>
+                  <Route>
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/treinos" element={<Workouts />} />
                     <Route path="/treinos/:id" element={<WorkoutDetail />} />

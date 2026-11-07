@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import type { ExerciseSet } from '@ht/shared';
-import { Check, RotateCcw } from 'lucide-react';
+import { Check, RotateCcw, Trash2 } from 'lucide-react';
 import { api } from '../services/api';
 import { basisLabel } from './common';
 import { draftSchema } from '../lib/validation';
@@ -34,6 +34,7 @@ export function SetRow({
   onDirty,
   onSaved,
   historical = false,
+  onDelete,
 }: {
   set: ExerciseSet;
   sessionId: string;
@@ -42,6 +43,7 @@ export function SetRow({
   onDirty: (id: string, dirty: boolean) => void;
   onSaved?: () => void;
   historical?: boolean;
+  onDelete?: (hasData: boolean) => void;
 }) {
   const key = `ht-draft:${sessionId}:${set.id}`;
   const [draft, setDraft] = useState<Draft>(() => {
@@ -94,6 +96,15 @@ export function SetRow({
   }, [current, dirty, mutation.isPending, mutation.isError, retry]); // mutation is stable through its mutate method
   const update = (patch: Partial<Draft>) => {
     const next = { ...draft, ...patch };
+    if (
+      !historical &&
+      ('weight' in patch || 'actualReps' in patch || 'rir' in patch)
+    ) {
+      next.completed = draftSchema.safeParse({
+        ...next,
+        completed: true,
+      }).success;
+    }
     setDraft(next);
     localStorage.setItem(key, JSON.stringify(next));
   };
@@ -181,6 +192,22 @@ export function SetRow({
         </button>
       </div>
       <div className="set-row-footer">
+        {onDelete && !historical && (
+          <button
+            className="text-button danger"
+            aria-label={`Excluir série ${set.setNumber}`}
+            disabled={mutation.isPending}
+            onClick={() =>
+              onDelete(
+                draft.weight !== null ||
+                  draft.actualReps !== null ||
+                  draft.rir !== null,
+              )
+            }
+          >
+            <Trash2 size={16} /> Excluir série
+          </button>
+        )}
         <button className="text-button" onClick={() => setDetail(!detail)}>
           {detail ? 'Ocultar detalhes' : 'Nota e base de carga'}
         </button>

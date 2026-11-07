@@ -6,11 +6,16 @@ import {
   type ReactNode,
 } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Program, User } from '@ht/shared';
+import type { Program, User, Session } from '@ht/shared';
 import { api, ApiError } from '../services/api';
-import { getSupabase, supabase, supabaseConfigError } from '../lib/supabase';
+import { getSupabase, supabaseConfigError } from '../lib/supabase';
+import { useAccountSession } from './use-account-session';
+import { Layout } from './layout';
+import { DashboardLoading } from '../components/dashboard-loading';
+import { StartupStatus } from '../components/startup-status';
 type Context = {
   user: User;
+  activeSession?: Session | null;
   programs: Program[];
   program: Program | undefined;
   setProgramId: (id: string) => void;
@@ -33,49 +38,36 @@ export function AccountGate({
   login: ReactNode;
 }) {
   const client = useQueryClient();
-  const [authReady, setAuthReady] = useState(false);
-  const [signedIn, setSignedIn] = useState(false);
-  const [authError, setAuthError] = useState<Error | null>(null);
-  useEffect(() => {
-    if (!supabase) {
-      setAuthReady(true);
-      return;
-    }
-    let active = true;
-    void supabase.auth.getSession().then(({ data, error }) => {
-      if (!active) return;
-      setAuthError(error);
-      setSignedIn(!!data.session);
-      setAuthReady(true);
-    });
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setAuthError(null);
-        setSignedIn(!!session);
-        setAuthReady(true);
-        if (event === 'SIGNED_OUT') client.clear();
-        else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')
-          void client.invalidateQueries({ queryKey: ['me'] });
-      },
-    );
-    return () => {
-      active = false;
-      listener.subscription.unsubscribe();
-    };
-  }, [client]);
+  const auth = useAccountSession();
+  const signedIn = auth.ready && !!auth.subject && !auth.error;
   const user = useQuery({
-    queryKey: ['me'],
-    queryFn: () => api<User>('/auth/me'),
+    queryKey: ['me', auth.subject],
+    queryFn: ({ signal }) =>
+      api<User>('/auth/me', 'GET', undefined, { signal }),
     retry: false,
-    enabled: authReady && signedIn,
+    enabled: signedIn,
   });
   const programs = useQuery({
-    queryKey: ['programs'],
-    queryFn: () => api<Program[]>('/programs'),
-    enabled: !!user.data,
+    queryKey: ['programs', auth.subject],
+    queryFn: ({ signal }) =>
+      api<Program[]>('/programs', 'GET', undefined, { signal }),
+    enabled: signedIn && !!user.data,
+    retry: false,
+  });
+  const activeSession = useQuery({
+    queryKey: ['active-session', user.data?.id],
+    queryFn: ({ signal }) =>
+      api<Session | null>('/sessions/active', 'GET', undefined, { signal }),
+    enabled: signedIn && !!user.data,
+    refetchInterval: 15000,
+    retry: false,
   });
   const [selectedWeek, setWeekNumber] = useState<number | null>(null);
   const [selectedProgram, setSelectedProgram] = useState<string | null>(null);
+  useEffect(() => {
+    setSelectedProgram(null);
+    setWeekNumber(null);
+  }, [auth.subject]);
   const program =
     programs.data?.find(
       (p) => p.id === selectedProgram && p.status === 'active',
@@ -99,66 +91,81 @@ export function AccountGate({
     document.documentElement.dataset.theme =
       user.data?.settings.theme ?? 'dark';
   }, [user.data]);
-  if (supabaseConfigError)
-    return (
-      <div className="center-screen">
-        <p className="error">{supabaseConfigError}</p>
-      </div>
-    );
-  if (authError)
-    return (
-      <div className="center-screen">
-        <p className="error">{authError.message}</p>
-      </div>
-    );
-  if (authReady && !signedIn) return login;
-  if (!authReady || user.isPending)
-    return <div className="center-screen">Carregando sua conta…</div>;
-  if (user.error instanceof ApiError && user.error.status === 401) return login;
-  if (user.error || programs.error)
-    return (
-      <div className="center-screen">
-        <div className="error">
-          {(user.error ?? programs.error)?.message}
-          <button
-            onClick={() => {
-              void user.refetch();
-              void programs.refetch();
+  const unauthorized = [user.error, programs.error].some(
+    (error) => error instanceof ApiError && error.status === 401,
+  );
+  if (
+    !supabaseConfigError &&
+    auth.ready &&
+    !auth.error &&
+    (!signedIn || unauthorized)
+  )
+    return login;
+  const startupError = supabaseConfigError
+    ? new Error(supabaseConfigError)
+    : (auth.error ?? user.error ?? programs.error);
+  const ready = signedIn && !!user.data && !!programs.data && !unauthorized;
+  const retry = () => {
+    if (auth.error) auth.retry();
+    else {
+      if (!user.data || user.error) void user.refetch();
+      if (user.data && programs.error) void programs.refetch();
+    }
+  };
+  const logout = async () => {
+    const { error } = await getSupabase().auth.signOut({ scope: 'local' });
+    if (error) throw error;
+    client.clear();
+  };
+  const status = (
+    <StartupStatus
+      pending={!ready && !startupError}
+      error={startupError}
+      retry={retry}
+    />
+  );
+  return (
+    <Layout
+      account={
+        ready && user.data
+          ? {
+              user: user.data,
+              program,
+              weekNumber,
+              setWeekNumber,
+              logout,
+              activeSession: activeSession.data,
+            }
+          : undefined
+      }
+    >
+      {!ready || !user.data ? (
+        <DashboardLoading status={status} />
+      ) : (
+        <>
+          {startupError && status}
+          <TrainingContext.Provider
+            value={{
+              user: user.data,
+              activeSession: activeSession.data,
+              programs: programs.data ?? [],
+              program,
+              setProgramId: (id) => {
+                setSelectedProgram(id);
+                setWeekNumber(null);
+              },
+              weekNumber,
+              setWeekNumber,
+              refresh: async () => {
+                await client.invalidateQueries();
+              },
+              logout,
             }}
           >
-            Tentar novamente
-          </button>
-        </div>
-      </div>
-    );
-  if (!user.data || programs.isPending)
-    return <div className="center-screen">Carregando programa…</div>;
-  return (
-    <TrainingContext.Provider
-      value={{
-        user: user.data,
-        programs: programs.data ?? [],
-        program,
-        setProgramId: (id) => {
-          setSelectedProgram(id);
-          setWeekNumber(null);
-        },
-        weekNumber,
-        setWeekNumber,
-        refresh: async () => {
-          await client.invalidateQueries();
-        },
-        logout: async () => {
-          const { error } = await getSupabase().auth.signOut({
-            scope: 'local',
-          });
-          if (error) throw error;
-          client.clear();
-          setSignedIn(false);
-        },
-      }}
-    >
-      {children}
-    </TrainingContext.Provider>
+            {children}
+          </TrainingContext.Provider>
+        </>
+      )}
+    </Layout>
   );
 }

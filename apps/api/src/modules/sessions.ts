@@ -1,3 +1,4 @@
+import { hasValidSetResults } from '@ht/shared';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../db.js';
@@ -269,6 +270,60 @@ export async function sessionRoutes(app: FastifyInstance) {
     ]);
     return { items, total, page: q.page, pageSize: q.pageSize };
   });
+  // Latest started session wins; ID breaks ties deterministically.
+  app.get('/sessions/active', async (req) =>
+    prisma.workoutSession.findFirst({
+      where: { userId: req.userId, status: { in: ['active', 'paused'] } },
+      orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
+      include: sessionInclude,
+    }),
+  );
+  // Removal affects this session only, including originally prescribed rows.
+  app.delete('/sessions/:id/sets/:setId', async (req, reply) => {
+    const { id, setId } = idParams.parse(req.params);
+    await ownedSession(id, req.userId);
+    await prisma.$transaction(async (tx) => {
+      await lock(tx, id);
+      const session = await tx.workoutSession.findUniqueOrThrow({
+        where: { id },
+      });
+      if (session.status === 'completed')
+        return fail(
+          409,
+          'Sessão concluída. O histórico não permite excluir séries.',
+        );
+      const before =
+        (await tx.exerciseSet.findFirst({
+          where: { id: setId, sessionExercise: { sessionId: id } },
+        })) ?? fail(404, 'Série não encontrada.');
+      await tx.exerciseSet.delete({ where: { id: before.id } });
+      const remaining = await tx.exerciseSet.findMany({
+        where: { sessionExerciseId: before.sessionExerciseId },
+        orderBy: { setNumber: 'asc' },
+      });
+      for (const [index, set] of remaining.entries()) {
+        await tx.exerciseSet.update({
+          where: { id: set.id },
+          data: { setNumber: index + 1 },
+        });
+      }
+      if (before.setType === 'work')
+        await tx.sessionExercise.update({
+          where: { id: before.sessionExerciseId },
+          data: { prescribedSetsSnapshot: { decrement: 1 } },
+        });
+      await tx.exerciseChangeLog.create({
+        data: {
+          userId: req.userId,
+          resourceId: before.id,
+          changeScope: 'set-removal',
+          before: JSON.parse(JSON.stringify(before)),
+          after: { deleted: true },
+        },
+      });
+    });
+    return reply.code(204).send();
+  });
   app.get('/sessions/:id', async (req) =>
     ownedSession(idParams.parse(req.params).id, req.userId),
   );
@@ -460,10 +515,19 @@ export async function sessionRoutes(app: FastifyInstance) {
       if (s.status === 'completed') return;
       if (
         !s.exercises.some((e) =>
-          e.sets.some((a) => a.completed && a.setType === 'work'),
+          e.sets.some(
+            (a) =>
+              a.completed &&
+              !a.skipped &&
+              a.setType === 'work' &&
+              hasValidSetResults(a),
+          ),
         )
       )
-        return fail(400, 'Conclua ao menos uma série de trabalho.');
+        return fail(
+          400,
+          'Registre carga (zero é permitido), repetições e RIR e conclua pelo menos uma série de trabalho. Aguarde o salvamento antes de finalizar.',
+        );
       await tx.workoutSession.update({
         where: { id },
         data: {

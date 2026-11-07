@@ -81,6 +81,13 @@ provider.post('/auth/v1/logout', async (req, reply) => {
 });
 const app = buildApp('http://localhost:5174', false, {
   verifyToken: async (token) => identities.get(token)?.identity ?? null,
+  // All isolated browser accounts share one IP and run within a minute.
+  rateLimitMax: 3000,
+});
+app.addHook('onError', async (request, _reply, error) => {
+  console.error(
+    `Local E2E API ${request.method} ${request.url}: ${error.message}`,
+  );
 });
 await asMigration(() => seedCatalog());
 await provider.listen({ host: '127.0.0.1', port: 54321 });

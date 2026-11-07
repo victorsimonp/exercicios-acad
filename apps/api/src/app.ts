@@ -19,7 +19,10 @@ import type { verifyAccessToken } from './modules/supabase.js';
 export function buildApp(
   origin: string,
   logger = false,
-  options: { verifyToken?: typeof verifyAccessToken } = {},
+  options: {
+    verifyToken?: typeof verifyAccessToken;
+    rateLimitMax?: number;
+  } = {},
 ) {
   const app = Fastify({ logger });
   // Zod validates every body in its handler. Do not let AJV coerce null numeric inputs to zero.
@@ -31,7 +34,7 @@ export function buildApp(
   });
   app.register(cookie);
   app.register(rateLimit, {
-    max: 300,
+    max: options.rateLimitMax ?? 300,
     timeWindow: '1 minute',
     errorResponseBuilder: () => ({
       error: 'Muitas solicitações. Aguarde um pouco e tente novamente.',

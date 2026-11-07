@@ -185,3 +185,26 @@ export type Schedule = {
   previousDates: string[];
   notes: string;
 };
+
+/** Completion requires recorded load (including zero), positive reps and RIR. */
+export function hasValidSetResults(set: {
+  weight: unknown;
+  actualReps: number | null;
+  rir: number | null;
+}): boolean {
+  return (
+    set.weight !== null &&
+    set.weight !== undefined &&
+    Number.isFinite(Number(set.weight)) &&
+    Number(set.weight) >= 0 &&
+    Number(set.weight) <= 2000 &&
+    set.actualReps !== null &&
+    Number.isInteger(set.actualReps) &&
+    set.actualReps > 0 &&
+    set.actualReps <= 200 &&
+    set.rir !== null &&
+    Number.isInteger(set.rir) &&
+    set.rir >= 0 &&
+    set.rir <= 10
+  );
+}
